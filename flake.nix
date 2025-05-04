@@ -129,33 +129,6 @@
           };
 
           config = lib.mkIf cfg.enable {
-            assertions = [
-              {
-                assertion = cfg.mode != "resolved" || config.services.resolved.enable;
-                message = ''
-                  The "resolved" mode requires systemd-resolved to be enabled.
-                  Please enable it with:
-
-                  services.resolved.enable = true;
-                '';
-              };
-              {
-                assertion = cfg.mode != "networkd" || config.systemd.network.enable;
-                message = ''
-                  The "networkd" mode requires systemd-networkd to be enabled.
-                  Please enable it with:
-
-                  systemd.network.enable = true;
-
-                  If you use NetworkManager, you might also need:
-
-                  systemd.network.wait-online.enable = false;
-
-                  See more info on how to enable systemd-networkd in https://nixos.wiki/wiki/Systemd-networkd
-                '';
-              };
-            ];
-
             systemd.services.zerotier-dns-companion = {
               description = "ZeroTier DNS Companion";
               wantedBy = [ "multi-user.target" ];
