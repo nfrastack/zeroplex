@@ -29,7 +29,7 @@ jobs:
           GOARCH=${{ matrix.arch }} GOOS=linux go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o zt-dns-companion-${{ matrix.arch }} ./cmd/zt-dns-companion
 
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: zt-dns-companion-${{ matrix.arch }}
           path: zt-dns-companion-${{ matrix.arch }}
