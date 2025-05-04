@@ -39,12 +39,22 @@
         let cfg = config.services.zerotier-dns-companion;
         in {
           options.services.zerotier-dns-companion = {
-            enable = lib.mkEnableOption "ZeroTier DNS Companion service";
+            enable = lib.mkEnableOption {
+              type = lib.types.bool;
+              default = false;
+              description = "Enable the ZeroTier DNS Companion service to manage DNS for ZeroTier networks.";
+            };
 
             package = lib.mkOption {
               type = lib.types.package;
               default = self.packages.${pkgs.system}.zerotier-dns-companion;
               description = "ZeroTier DNS Companion package to use.";
+            };
+
+            configFile = lib.mkOption {
+              type = lib.types.str;
+              default = "/etc/zt-dns-companion.conf";
+              description = "Path to the configuration file for ZT DNS Companion.";
             };
 
             mode = lib.mkOption {
@@ -87,7 +97,7 @@
               type = lib.types.bool;
               default = true;
               description =
-                "Automatically restart systemd-resolved when things change.";
+                "Automatically restart systemd-networkd when things change.";
             };
 
             dnsOverTLS = lib.mkOption {
@@ -119,33 +129,40 @@
           };
 
           config = lib.mkIf cfg.enable {
+            assertions = [
+              {
+                assertion = cfg.mode != "resolved" || config.services.resolved.enable;
+                message = ''
+                  The "resolved" mode requires systemd-resolved to be enabled.
+                  Please enable it with:
+
+                  services.resolved.enable = true;
+                '';
+              };
+              {
+                assertion = cfg.mode != "networkd" || config.systemd.network.enable;
+                message = ''
+                  The "networkd" mode requires systemd-networkd to be enabled.
+                  Please enable it with:
+
+                  systemd.network.enable = true;
+
+                  If you use NetworkManager, you might also need:
+
+                  systemd.network.wait-online.enable = false;
+
+                  See more info on how to enable systemd-networkd in https://nixos.wiki/wiki/Systemd-networkd
+                '';
+              };
+            ];
+
             systemd.services.zerotier-dns-companion = {
               description = "ZeroTier DNS Companion";
               wantedBy = [ "multi-user.target" ];
               serviceConfig = {
                 ExecStart = ''
                   ${cfg.package}/bin/zerotier-dns-companion \
-                    -mode ${cfg.mode} \
-                    -port ${toString cfg.port} \
-                    -host ${cfg.host} \
-                    ${
-                      lib.optionalString (cfg.token == "")
-                      "-token-file ${cfg.tokenFile}"
-                    } \
-                    -add-reverse-domains ${
-                      if cfg.addReverseDomains then "true" else "false"
-                    } \
-                    -auto-restart ${
-                      if cfg.autoRestart then "true" else "false"
-                    } \
-                    -dns-over-tls ${
-                      if cfg.dnsOverTLS then "true" else "false"
-                    } \
-                    -multicast-dns ${
-                      if cfg.multicastDNS then "true" else "false"
-                    } \
-                    -reconcile ${if cfg.reconcile then "true" else "false"} \
-                    -log-level ${cfg.logLevel}
+                    -config ${cfg.configFile}
                 '';
                 Type = "oneshot";
                 User = "root";
@@ -160,6 +177,19 @@
                 OnUnitActiveSec = cfg.timerInterval;
                 Persistent = true;
               };
+            };
+
+            environment.etc."${cfg.configFile}".text = builtins.toJSON {
+              add_reverse_domains = cfg.addReverseDomains;
+              auto_restart = cfg.autoRestart;
+              dns_over_tls = cfg.dnsOverTLS;
+              host = cfg.host;
+              log_level = cfg.logLevel;
+              mode = cfg.mode;
+              multicast_dns = cfg.multicastDNS;
+              port = cfg.port;
+              reconcile = cfg.reconcile;
+              token_file = cfg.tokenFile;
             };
           };
         };
