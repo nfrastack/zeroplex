@@ -1,12 +1,8 @@
 # ZT DNS Companion
 
-* * *
-
 ## About
 
-This tool allows you to query your [ZeroTier](https://zerotier.com) networks and create per-interface DNS settings for name resolution. Whether you use a managed or self hosted controller, you can configure at the controller level [custom DNS server and search domain](https://docs.zerotier.com/dns-management) downstream to the client. Windows, MacOS, Android, and IOS all have the capability of auto configuring their systems to utilize this setting. If you are running a Linux host, you need to perform extra configuration, due to the many types of network tools avaialable. This utility aims to automate that work.
-
-This tool supports using:
+This tool allows you to query your [ZeroTier](https://zerotier.com) networks and create per-interface DNS settings for name resolution. Whether you use a managed or self-hosted controller, you can configure at the controller level [custom DNS server and search domain](https://docs.zerotier.com/dns-management) downstream to the client. Windows, macOS, Android, and iOS all have the capability of auto-configuring their systems to utilize this setting. If you are running a Linux host, you need to perform extra configuration due to the many types of network tools available. This utility aims to automate that work.
 
 ## Maintainer
 
@@ -16,21 +12,21 @@ nfrastack <code@nfrastack.com>
 
 - [About](#about)
 - [Maintainer](#maintainer)
-- [Table of Contents](#table-of-contents)
 - [Prerequisites and Assumptions](#prerequisites-and-assumptions)
 - [Configuration](#configuration)
   - [Quick Start](#quick-start)
+  - [Command Line Arguments](#command-line-arguments)
   - [Configuration File](#configuration-file)
     - [How It Works](#how-it-works)
     - [Example Configuration File](#example-configuration-file)
     - [Using a Custom Configuration File](#using-a-custom-configuration-file)
-- [Usage](#usage)
-  - [Command Line Arguments](#command-line-arguments)
+- [Running in Background](#running-in-background)
 - [Installing](#installing)
   - [From Source](#from-source)
+  - [Precompiled Binaries](#precompiled-binaries)
   - [Distributions](#distributions)
 - [Support](#support)
-  - [Usage](#usage-1)
+  - [Usage](#usage)
   - [Bugfixes](#bugfixes)
   - [Feature Requests](#feature-requests)
   - [Updates](#updates)
@@ -39,15 +35,39 @@ nfrastack <code@nfrastack.com>
 
 ## Prerequisites and Assumptions
 
-* Assumes you are have the Zerotier-One client installed and are connected to one or more networks
-* An available DNS server to serve records
-* Utilizing either:
-  * `systemd-networkd`, a system service that manages network configurations, primarily for servers and headless Linux systems.
-  * `systemd-resolved` which is a system service that provides network name resolution for local applications on Linux systems. It works alongside [NetworkManager](https://wiki.archlinux.org/title/NetworkManager#systemd-resolved), [ConnMan](https://wiki.archlinux.org/title/ConnMan#Using_systemd-resolved) and [`iwd`](https://wiki.archlinux.org/title/Iwd#Select_DNS_manager) and others making this suitable for those using desktop Linux. This mode requires `resolvectl` to be available on the system.
+- Assumes you have the ZeroTier-One client installed and are connected to one or more networks.
+- An available DNS server to serve records.
+- Utilizing either:
+  - `systemd-networkd`, a system service that manages network configurations, primarily for servers and headless Linux systems.
+  - `systemd-resolved`, a system service that provides network name resolution for local applications on Linux systems. It works alongside [NetworkManager](https://wiki.archlinux.org/title/NetworkManager#systemd-resolved), [ConnMan](https://wiki.archlinux.org/title/ConnMan#Using_systemd-resolved), and [`iwd`](https://wiki.archlinux.org/title/Iwd#Select_DNS_manager), making this suitable for those using desktop Linux. This mode requires `resolvectl` to be available on the system.
 
 ## Configuration
 
 ### Quick Start
+
+Run `zt-dns-companion` as `root` with appropriate command-line arguments. If you are connected to ZeroTier networks that have DNS assignments, depending on which `-mode` you are running, it will:
+
+- `networkd`: Populate files in `/etc/systemd/network/99-<network-name>`. It will then restart `systemd-networkd` for you if things have changed.
+- `resolved`: Populate search domains and DNS server entries with `resolvectl` if entries don't already exist.
+
+### Command Line Arguments
+
+To change the way the tool operates, you can pass various arguments via the command line.
+
+- `-mode`: Set the mode of operation (`networkd` or `resolved`) (default: `networkd`).
+- `-log-level`: Set the logging level (`info` or `debug`).
+- `-dry-run`: Simulate changes without applying them.
+- `-auto-restart`: (networkd) Automatically restart `systemd-networkd` when changes are detected (default: true).
+- `-reconcile`: (networkd) Remove unused network files when networks are no longer active (default: true).
+- `-dns-over-tls`: Enable DNS-over-TLS for supported configurations (default: false).
+- `-multicast-dns`: Enable multicast DNS (mDNS) for ZeroTier interfaces (default: false).
+- `-add-reverse-domains`: Add reverse DNS search domains (e.g., `in-addr.arpa`, `ip6.arpa`) based on assigned IPs (default: false).
+- `-config`: Specify a custom configuration file. If the file does not exist, it will be autogenerated with default values and any other command-line arguments passed to the binary.
+- `-token-file`: Path to the ZeroTier authentication token file (default: `/var/lib/zerotier-one/authtoken.secret`).
+- `-token`: ZeroTier authentication token (overrides `-token-file` if provided).
+- `-host`: ZeroTier client host address (default: `http://localhost`).
+- `-port`: ZeroTier client port number (default: `9993`).
+- `-version`: Print the version and exit.
 
 ### Configuration File
 
@@ -68,7 +88,7 @@ ZT DNS Companion supports a configuration file to simplify managing options. By 
 
 #### Example Configuration File
 
-An [example configuration file](contrib/config/zt-dns-companion.conf) is provided. You can copy it to `/etc/zt-dns-companion.conf` or use it as a reference for creating a custom configuration file.
+An example configuration file is provided in the repository as `config.example.json`. You can copy it to `/etc/zt-dns-companion.conf` or use it as a reference for creating a custom configuration file.
 
 ```json
 {
@@ -97,28 +117,9 @@ zt-dns-companion --config /path/to/custom-config.json
 
 If the specified file does not exist, it will be created with default values, and you will see a message indicating that the file has been autogenerated.
 
-## Usage
+## Running in Background
 
-This should be run as a systemd service and timer as it only bases its information of present moment. It will not monitor if you change DNS server settings on your controller, and if using `resolved` mode will not survive a reboot. See [systemd](systemd) for examples of units and timers that can be implemented into your distribution.
-
-Run `zerotier-systemd-manager` as `root` with appropriate command line arguments. If you are connected to ZeroTier networks which have DNS assignments depending on which `-mode` you are running it will:
-
-* `networkd` - Populate files in `/etc/systemd/network/99-<network-name>` . It will then restart `systemd-networkd` for you if things have changed.
-* `resolved` - Populate search domains and dns server entries with `resolvectl` if entries don't already exist.
-
-### Command Line Arguments
-
-To change the way the tool operates, you can pass various arguments via the command line.
-
-* `-config`: Specify a custom configuration file. If the file does not exist, it will be autogenerated with default values and any other command-line arguments passed to the binary.
-* `-mode`: Set the mode of operation (`networkd` or `resolved`) (default: `networkd`).
-* `-log-level`: Set the logging level (`info` or `debug`).
-* `-dry-run`: Simulate changes without applying them.
-* `-auto-restart`: (networkd) Automatically restart `systemd-networkd` when changes are detected (default: true).
-* `-reconcile`: (networkd) Remove unused network files when networks are no longer active (default: true).
-* `-dns-over-tls`: Enable DNS-over-TLS for supported configurations (default: false).
-* `-multicast-dns`: Enable multicast DNS (mDNS) for ZeroTier interfaces (default: false).
-* `-add-reverse-domains`: Add reverse DNS search domains (e.g., `in-addr.arpa`, `ip6.arpa`) based on assigned IPs (default: false).
+This should be run as a systemd service and timer as it only bases its information on the present moment. It will not monitor if you change DNS server settings on your controller, and if using `resolved` mode, it will not survive a reboot. See [contrib/systemd](contrib/systemd) for examples of units and timers that can be implemented into your distribution.
 
 ## Installing
 
@@ -130,42 +131,72 @@ Clone this repository and compile with [GoLang 1.21 or later](https://golang.org
 go build ./cmd/zt-dns-companion/
 ```
 
-_or_
+### Precompiled Binaries
 
-```bash
-go get github.com/nfrastack/zt-dns-companion
-```
+Precompiled binaries are available for download from the [GitHub Releases](https://github.com/nfrastack/zt-dns-companion/releases) page. These binaries are created only for tagged releases.
+
+#### Supported Architectures
+
+- `x86_64` (64-bit Linux)
+- `aarch64` (ARM 64-bit Linux)
+
+#### How to Download
+
+1. Visit the [Releases](https://github.com/nfrastack/zt-dns-companion/releases) page.
+2. Locate the release you want to download.
+3. Download the binary for your architecture:
+   - `zt-dns-companion-x86_64` for 64-bit Linux.
+   - `zt-dns-companion-aarch64` for ARM 64-bit Linux.
+
+#### How to Use
+
+1. Make the binary executable:
+   ```bash
+   chmod +x zt-dns-companion-<architecture>
+   ```
+
+2. Move it to a directory in your `PATH` (e.g., `/usr/local/bin`):
+   ```bash
+   sudo mv zt-dns-companion-<architecture> /usr/local/bin/zt-dns-companion
+   ```
+
+3. Run the binary:
+   ```bash
+   zt-dns-companion --help
+   ```
 
 ### Distributions
 
-Placeholder
+#### NixOS
+
+See [contrib/nixos](contrib/nixos) for installation instructions and a module that can be used to configure.
 
 ## Support
 
 ### Usage
 
-* The [Discussions board](../../discussions) is a great place for working with the community on tips and tricks
-* [Sponsor me](https://tiredofit.ca/sponsor) for personalized support
+- The [Discussions board](../../discussions) is a great place for working with the community on tips and tricks.
+- [Sponsor me](https://tiredofit.ca/sponsor) for personalized support.
 
 ### Bugfixes
 
-* Please, submit a [Bug Report](issues/new) if something isn't working as expected. I'll do my best to issue a fix in short order.
+- Please submit a [Bug Report](issues/new) if something isn't working as expected. I'll do my best to issue a fix in short order.
 
 ### Feature Requests
 
-* Feel free to submit a feature request, however there is no guarantee that it will be added, or at what timeline.
-* [Sponsor me](https://tiredofit.ca/sponsor) regarding development of features.
+- Feel free to submit a feature request; however, there is no guarantee that it will be added or at what timeline.
+- [Sponsor me](https://tiredofit.ca/sponsor) regarding the development of features.
 
 ### Updates
 
-* Best effort to track upstream dependency changes, More priority if I am actively using the tool.
-* [Sponsor me](https://tiredofit.ca/sponsor) for up to date releases.
+- Best effort to track upstream dependency changes, with more priority if I am actively using the tool.
+- [Sponsor me](https://tiredofit.ca/sponsor) for up-to-date releases.
 
 ## References
 
-* [zerotier-systemd-manager](https://github.com/zerotier/zerotier-systemd-manager) - Original forked project by Erik Hollensbe <github@hollensbe.org>
-* [zerotier-resolved](https://github.com/twisteroidambassador/zerotier-resolved) - Adds `resolvectl` settings via python script
-* [zeronsd](https://github.com/zerotier/zeronsd) DNS server that maps member IDs and names to IP addresses on an ZeroTier network.
+- [zerotier-systemd-manager](https://github.com/zerotier/zerotier-systemd-manager) - Original forked project by Erik Hollensbe <github@hollensbe.org>.
+- [zerotier-resolved](https://github.com/twisteroidambassador/zerotier-resolved) - Adds `resolvectl` settings via a Python script.
+- [zeronsd](https://github.com/zerotier/zeronsd) - DNS server that maps member IDs and names to IP addresses on a ZeroTier network.
 
 ## License
 
