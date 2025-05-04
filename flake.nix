@@ -17,10 +17,16 @@
         in {
           zerotier-dns-companion = pkgs.buildGoModule {
             pname = "zerotier-dns-companion";
-            inherit version;
+            version = pkgs.runCommand "version" {} ''
+              if [ -d .git ]; then
+                git describe --tags --always --dirty > $out
+              else
+                echo "unknown" > $out
+              fi
+            '';
             src = ./.;
             vendorHash = "sha256-pY9VpCiNOkLu6w7jaiOR8O0NMZYC1RxzmHt/NhlfVZk=";
-            ldflags = [ "-w" "-s" "-X main.Version=v${version}" ];
+            ldflags = [ "-w" "-s" "-X main.Version=${version}" ];
           };
         });
 
