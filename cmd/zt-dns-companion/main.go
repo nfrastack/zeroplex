@@ -28,7 +28,6 @@ import (
 	"sync"
 
 	"github.com/godbus/dbus/v5"
-	"github.com/nfrastack/zt-dns-companion/internal/config"
 	"github.com/zerotier/go-zerotier-one/service"
 )
 
@@ -193,8 +192,7 @@ func (c *serviceAPIClient) Do(req *http.Request) (*http.Response, error) {
 
 // main contains the primary logic for the application
 func main() {
-	// Parse command-line arguments
-	configFile := flag.String("config", "/etc/zt-dns-companion.conf", "Path to the configuration file")
+	// Command line arguments
 	addReverseDomains_arg := flag.Bool("add-reverse-domains", false, "Add ip6.arpa and in-addr.arpa search domains")
 	autoRestart_arg := flag.Bool("auto-restart", true, "Automatically restart systemd-resolved when things change")
 	dnsOverTLS_arg := flag.Bool("dns-over-tls", false, "Automatically prefer DNS-over-TLS. Requires ZeroNSd v0.4 or better")
@@ -226,67 +224,35 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Load configuration
-	cfg := config.DefaultConfig()
-	if _, err := os.Stat(*configFile); err == nil {
-		loadedConfig, err := config.LoadConfig(*configFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to load config file %s: %v\n", *configFile, err)
-			os.Exit(1)
-		}
-		cfg = config.MergeConfig(cfg, loadedConfig)
-	} else if *configFile != "/etc/zt-dns-companion.conf" {
-		// Create default config if custom file doesn't exist
-		if err := config.SaveConfig(*configFile, cfg); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to create config file %s: %v\n", *configFile, err)
-			os.Exit(1)
-		}
-		fmt.Printf("Configuration file %s not found. A default one has been created.\n", *configFile)
+	SetLogLevel(*logLevel_arg)
+
+	if *dryRun_arg {
+		Infof("Dry-run mode enabled. No changes will be applied.")
 	}
 
-	// Override with command-line arguments
-	cmdOverrides := config.Config{
-		AddReverseDomains: *addReverseDomains_arg,
-		AutoRestart:       *autoRestart_arg,
-		DNSOverTLS:        *dnsOverTLS_arg,
-		DryRun:            *dryRun_arg,
-		Host:              *host_arg,
-		LogLevel:          *logLevel_arg,
-		Mode:              *mode_arg,
-		MulticastDNS:      *multicastDNS_arg,
-		Port:              *port_arg,
-		Reconcile:         *reconcile_arg,
-		TokenFile:         *tokenFile_arg,
-		Token:             *token_arg,
-	}
-	cfg = config.MergeConfig(cfg, cmdOverrides)
-
-	// Set log level
-	SetLogLevel(cfg.LogLevel)
-
-	// Check for root privileges
 	if os.Geteuid() != 0 {
 		errExit(fmt.Errorf("ERROR: You need to be root to run this program"))
 	}
 
-	// Check for Linux OS
 	if runtime.GOOS != "linux" {
 		errExit(fmt.Errorf("ERROR: This tool is only needed on Linux"))
 	}
 
-	// Use the configuration values in the application logic
-	apiToken := cfg.Token
-	if apiToken == "" {
-		content, err := os.ReadFile(cfg.TokenFile)
+	// Determine the token to use
+	var apiToken string
+	if *token_arg != "" {
+		apiToken = *token_arg
+	} else {
+		content, err := os.ReadFile(*tokenFile_arg)
 		if err != nil {
-			errExit(fmt.Errorf("failed to read token file %s: %w", cfg.TokenFile, err))
+			errExit(fmt.Errorf("failed to read token file %s: %w", *tokenFile_arg, err))
 		}
 		apiToken = strings.TrimSpace(string(content))
 	}
 
 	sAPI := &serviceAPIClient{apiKey: apiToken, client: &http.Client{}}
 
-	ztBaseURL := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
+	ztBaseURL := fmt.Sprintf("%s:%d", *host_arg, *port_arg)
 	client, err := service.NewClient(ztBaseURL, service.WithHTTPClient(sAPI))
 	if err != nil {
 		errExit(err)
@@ -302,11 +268,11 @@ func main() {
 		errExit(err)
 	}
 
-	switch cfg.Mode {
+	switch *mode_arg {
 	case "networkd":
-		runNetworkdMode(networks, &cfg.AddReverseDomains, &cfg.AutoRestart, &cfg.DNSOverTLS, &cfg.DryRun, &cfg.MulticastDNS, &cfg.Reconcile)
+		runNetworkdMode(networks, addReverseDomains_arg, autoRestart_arg, dnsOverTLS_arg, dryRun_arg, multicastDNS_arg, reconcile_arg)
 	case "resolved":
-		runResolvedMode(networks, &cfg.AddReverseDomains, &cfg.DryRun)
+		runResolvedMode(networks, addReverseDomains_arg, dryRun_arg)
 	default:
 		errExit(fmt.Errorf("invalid mode. Supported modes are: networkd, resolved"))
 	}
