@@ -14,8 +14,8 @@ build-release:
 	$(GO) build -ldflags "$(LDFLAGS) $(BUILD_FLAGS)" -o $(BINARY_NAME) $(BUILD_DIR)
 
 build-all:
-	GOOS=linux GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS) $(BUILD_FLAGS)" -o $(BINARY_NAME)-x86_64 $(BUILD_DIR)
-	GOOS=linux GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS) $(BUILD_FLAGS)" -o $(BINARY_NAME)-aarch64 $(BUILD_DIR)
+	GOOS=linux GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS) $(BUILD_FLAGS)" -o $(BINARY_NAME)_x86_64 $(BUILD_DIR)
+	GOOS=linux GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS) $(BUILD_FLAGS)" -o $(BINARY_NAME)_aarch64 $(BUILD_DIR)
 
 clean:
 	rm -f $(BINARY_NAME) $(BINARY_NAME)-x86_64 $(BINARY_NAME)-aarch64
@@ -24,7 +24,7 @@ install:
 	$(GO) install $(BUILD_DIR)
 
 release: clean build-all
-	@echo "Binaries built with version: $(VERSION) and ready for release: $(BINARY_NAME)-x86_64, $(BINARY_NAME)-aarch64"
+	@echo "Binaries built with version: $(VERSION) and ready for release: $(BINARY_NAME)_x86_64, $(BINARY_NAME)_aarch64"
 
 help:
 	@echo "make build           Build the binary"
