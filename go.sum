@@ -88,8 +88,6 @@ github.com/valyala/fasttemplate v1.2.1/go.mod h1:KHLXt3tVN2HBp8eijSv/kGJopbvo7S+
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/zerotier/go-zerotier-one v0.1.1 h1:JfqyrZ0iI8a6zamUjJ5gaDX48kRttvUntUM7sjWtezU=
 github.com/zerotier/go-zerotier-one v0.1.1/go.mod h1:Vl9TCuoR1RzKlf7dT1U5F9P0zjGxHd2kibDREY1e1/s=
-github.com/zerotier/go-zerotier-one v0.1.2 h1:BA4c9lL/x2Km25gRP+/z/wegVGcDc6cgS0xvj3IkXIc=
-github.com/zerotier/go-zerotier-one v0.1.2/go.mod h1:Vl9TCuoR1RzKlf7dT1U5F9P0zjGxHd2kibDREY1e1/s=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550/go.mod h1:yigFU9vqHzYiE8UmvKecakEJjdnWj3jj499lnFckfCI=
 golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
