@@ -24,6 +24,15 @@
           };
         });
 
+      devShells = forAllSystems (system:
+        let pkgs = nixpkgsFor.${system};
+        in pkgs.mkShell {
+          buildInputs = [
+            pkgs.make
+            pkgs.go
+          ];
+        });
+
       defaultPackage = forAllSystems (system: self.packages.${system}.zerotier-dns-companion);
 
       nixosModules.default = { config, lib, pkgs, ... }:
@@ -154,13 +163,5 @@
             };
           };
         };
-
-      meta = with pkgs.lib; {
-        description = "DNS configuration for ZeroTier networks";
-        homepage = "https://github.com/nfrastack/zerotier-dns-companion";
-        license = licenses.bsd3;
-        maintainers = [ tiredofit ];
-        platforms = platforms.linux;
-      };
     };
 }
