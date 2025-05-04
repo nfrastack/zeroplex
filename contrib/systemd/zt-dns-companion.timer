@@ -1,0 +1,9 @@
+[Unit]
+Description=Update Zerotier per-interface DNS settings
+
+[Timer]
+OnStartupSec=1min
+OnUnitInactiveSec=1min
+
+[Install]
+WantedBy=timers.target
