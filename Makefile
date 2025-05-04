@@ -33,4 +33,4 @@ help:
 	@echo "make clean           Clean up build artifacts"
 	@echo "make install         Install the binary locally"
 	@echo "make release         Build and prepare for release"
-	@echo "make help            Show this help message"
+	@echo "make help            Show this message"
