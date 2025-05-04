@@ -1,0 +1,19 @@
+# {{ .FileHeader }}
+[Match]
+Name={{ .ZTInterface }}
+
+[Network]
+Description={{ .ZTNetwork }}
+DHCP=no
+{{ range $key := .DNS -}}
+DNS={{ $key }}
+{{ end -}}
+{{ if .DNS_TLS -}}
+DNSOverTLS=yes
+{{ end -}}
+{{ if .MDNS -}}
+MulticastDNS=yes
+{{ end -}}
+Domains=~{{ .Domain }}
+ConfigureWithoutCarrier=true
+KeepConfiguration=static
