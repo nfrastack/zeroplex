@@ -1,6 +1,7 @@
-module github.com/nfrastack/zerotier-dns-companion
+module zt-dns-companion
 
-go 1.21
+go 1.21.0
+
 
 require (
 	github.com/godbus/dbus/v5 v5.1.0
