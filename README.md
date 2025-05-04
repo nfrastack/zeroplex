@@ -68,7 +68,7 @@ ZT DNS Companion supports a configuration file to simplify managing options. By 
 
 #### Example Configuration File
 
-An [example configuration file](config/etc/zt-dns-companion.example.json) is provided. You can copy it to `/etc/zt-dns-companion.conf` or use it as a reference for creating a custom configuration file.
+An [example configuration file](contrib/config/zt-dns-companion.conf) is provided. You can copy it to `/etc/zt-dns-companion.conf` or use it as a reference for creating a custom configuration file.
 
 ```json
 {
