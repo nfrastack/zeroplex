@@ -26,6 +26,19 @@ install:
 release: clean build-all
 	@echo "Binaries built with version: $(VERSION) and ready for release: $(BINARY_NAME)_x86_64, $(BINARY_NAME)_aarch64"
 
+check-release:
+	@if git describe --tags --exact-match >/dev/null 2>&1; then \
+		if git diff-index --quiet HEAD --; then \
+			echo "Repository is clean and tagged. Ready for release."; \
+		else \
+			echo "Repository is tagged but has uncommitted changes. Please commit or stash changes before release."; \
+			exit 1; \
+		fi; \
+	else \
+		echo "Repository is not tagged. Please create a tag before release."; \
+		exit 1; \
+	fi
+
 help:
 	@echo "make build           Build the binary"
 	@echo "make build-release   Build the binary with version information"
@@ -33,4 +46,5 @@ help:
 	@echo "make clean           Clean up build artifacts"
 	@echo "make install         Install the binary locally"
 	@echo "make release         Build and prepare for release"
+	@echo "make check-release   Verify if the repository is tagged and clean"
 	@echo "make help            Show this message"
