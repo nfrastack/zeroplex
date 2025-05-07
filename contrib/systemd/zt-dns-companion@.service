@@ -1,0 +1,11 @@
+[Unit]
+Description=ZeroTier DNS Companion service for interface %i
+BindsTo=sys-subsystem-net-devices-%i.device
+After=sys-subsystem-net-devices-%i.device
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/zt-dns-companion -interface %i
+
+[Install]
+WantedBy=sys-subsystem-net-devices-%i.device
