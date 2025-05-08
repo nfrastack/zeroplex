@@ -212,8 +212,8 @@ Precompiled binaries are available for download from the [GitHub Releases](https
 1. Visit the [Releases](https://github.com/nfrastack/zt-dns-companion/releases) page.
 2. Locate the release you want to download.
 3. Download the binary for your architecture:
-   - `zt-dns-companion-x86_64` for 64-bit Linux.
-   - `zt-dns-companion-aarch64` for ARM 64-bit Linux.
+   - `zt-dns-companion_x86_64` for 64-bit Linux.
+   - `zt-dns-companion_aarch64` for ARM 64-bit Linux.
 
 #### How to Use
 
@@ -226,7 +226,7 @@ Precompiled binaries are available for download from the [GitHub Releases](https
 2. Move it to a directory in your `PATH` (e.g., `/usr/local/bin`):
 
    ```bash
-   sudo mv zt-dns-companion-<architecture> /usr/local/bin/zt-dns-companion
+   sudo mv zt-dns-companion_<architecture> /usr/local/bin/zt-dns-companion
    ```
 
 3. Run the binary:
