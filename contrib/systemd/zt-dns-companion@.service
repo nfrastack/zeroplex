@@ -5,7 +5,7 @@ After=sys-subsystem-net-devices-%i.device
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/zt-dns-companion -interface %i
+ExecStart=/usr/bin/zt-dns-companion -filter-type interface -filter-include %i
 
 [Install]
 WantedBy=sys-subsystem-net-devices-%i.device

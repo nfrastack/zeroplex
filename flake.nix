@@ -6,7 +6,7 @@
 
   outputs = { self, nixpkgs }:
     let
-      version = "1.0.0";
+      version = "0.0.99";
       supportedSystems = [
         "x86_64-linux"
         "aarch64-linux"
@@ -42,7 +42,7 @@
               "-X main.Version=${version}"
             ];
 
-            vendorHash = "sha256-4DahIQyTIhzCnmpErN7mCeWCSFXMNXbHkAsVAw7daHw=";
+            vendorHash = "sha256-uqrJspDAvXrSq5E5LM5rbyvd8Jtp7Mr737B59FZgovQ=";
           };
         });
 
@@ -72,6 +72,12 @@
               description = "Enable the systemd service for ZeroTier DNS Companion.";
             };
 
+            service.timerInterval = lib.mkOption {
+              type = lib.types.str;
+              default = "1m";
+              description = "Interval for the systemd timer (e.g., 1m, 5m, 1h).";
+            };
+
             package = lib.mkOption {
               type = lib.types.package;
               default = self.packages.${pkgs.system}.zt-dns-companion;
@@ -85,7 +91,7 @@
             };
 
             profiles = lib.mkOption {
-              type = with lib.types; attrsOf (attrsOf any);
+              type = with lib.types; attrsOf (attrsOf anything);
               default = {};
               example = {
                 example1 = {
@@ -207,11 +213,6 @@
               description = "Automatically remove left networks from systemd-networkd configuration.";
             };
 
-            timerInterval = lib.mkOption {
-              type = lib.types.str;
-              default = "1m";
-              description = "Interval for the systemd timer (e.g., 1m, 5m, 1h).";
-            };
           };
 
           config = lib.mkIf cfg.enable {
@@ -321,7 +322,7 @@
               description = "Run ZeroTier DNS Companion periodically";
               wantedBy = [ "timers.target" ];
               timerConfig = {
-                OnUnitActiveSec = cfg.timerInterval;
+                OnUnitActiveSec = cfg.service.timerInterval;
                 Persistent = true;
               };
             };
