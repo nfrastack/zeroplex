@@ -50,7 +50,7 @@ nfrastack <code@nfrastack.com>
 - An available DNS server to serve records.
 - Utilizing either:
   - `systemd-networkd`, a system service that manages network configurations, primarily for servers and headless Linux systems.
-  - `systemd-resolved`, a system service that provides network name resolution for local applications on Linux systems. It works alongside [NetworkManager](https://wiki.archlinux.org/title/NetworkManager#systemd-resolved), [ConnMan](https://wiki.archlinux.org/title/ConnMan#Using_systemd-resolved), and [`iwd`](https://wiki.archlinux.org/title/Iwd#Select_DNS_manager), making this suitable for those using desktop Linux. This mode requires `resolvectl` to be available on the system.
+  - `systemd-resolved`, a system service that provides network name resolution for local applications on Linux systems. It works alongside [NetworkManager](https://wiki.archlinux.org/title/NetworkManager#systemd-resolved), [ConnMan](https://wiki.archlinux.org/title/ConnMan#Using_systemd-resolved), and [`iwd`](https://wiki.archlinux.org/title/Iwd#Select_DNS_manager), making this suitable for those using desktop Linux.
 
 ## Configuration
 
