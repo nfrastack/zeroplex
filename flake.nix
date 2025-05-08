@@ -58,7 +58,15 @@
       defaultPackage = forAllSystems (system: self.packages.${system}.zt-dns-companion);
 
       nixosModules.default = { config, lib, pkgs, ... }:
-        let cfg = config.services.zt-dns-companion;
+        let
+          cfg = config.services.zt-dns-companion;
+
+          # Utility function to get directory part of path
+          getDir = path:
+            let
+              components = builtins.match "(.*)/.*" path;
+            in
+              if components == null then "." else builtins.head components;
         in {
           options.services.zt-dns-companion = {
             enable = lib.mkEnableOption {
@@ -239,8 +247,8 @@
             ) {
               zt-dns-companion-config = {
                 text = ''
-                  if [ ! -e "${lib.dirOf cfg.configFile}" ]; then
-                    mkdir -p "${lib.dirOf cfg.configFile}"
+                  if [ ! -e "${getDir cfg.configFile}" ]; then
+                    mkdir -p "${getDir cfg.configFile}"
                   fi
                   cat > ${cfg.configFile} << 'EOC'
                   # Default profile
