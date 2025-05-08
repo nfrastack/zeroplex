@@ -41,6 +41,11 @@ var (
 	ExcludeNoneValues = map[string]bool{"none": true, "ignore": true, "": true}             // Values that mean "exclude nothing"
 )
 
+func init() {
+	// By default, remove timestamp from log output to match our custom logging behavior
+	log.SetFlags(0)
+}
+
 type Config struct {
 	Default  Profile            `toml:"default"`
 	Profiles map[string]Profile `toml:"profiles"`
@@ -323,16 +328,16 @@ func DefaultConfig() Config {
 func ErrorHandler(context string, err error, exit bool) {
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Printf("%s: %v", context, err)
+			log.Printf("ERROR: %s: %v", context, err)
 		} else {
 			if context != "" {
-				log.Fatalf("%s: %v", context, err)
+				log.Fatalf("ERROR: %s: %v", context, err)
 			} else {
-				log.Fatalf("Error: %v", err)
+				log.Fatalf("ERROR: %v", err)
 			}
 		}
 	} else if context != "" {
-		log.Println(context)
+		log.Printf("ERROR: %s", context)
 	}
 
 	if exit {
@@ -509,7 +514,33 @@ func loadConfiguration(configFile string) Config {
 			if err != nil {
 				Debugf("Error loading configuration file %s: %v", configFile, err)
 				ErrorHandler("Loading configuration file", err, true)
+				return DefaultConfig()
 			}
+
+			// Apply application defaults for any unset fields in the loaded config
+			defaultConfig := DefaultConfig()
+
+			// Apply token file default if not set in config
+			if loadedConfig.Default.TokenFile == "" {
+				Debugf("TokenFile not set in config, using default: %s", defaultConfig.Default.TokenFile)
+				loadedConfig.Default.TokenFile = defaultConfig.Default.TokenFile
+			}
+
+			// Apply MulticastDNS default if not set in config
+			if !loadedConfig.Default.LogTimestamps && !loadedConfig.Default.MulticastDNS {
+				loadedConfig.Default.MulticastDNS = defaultConfig.Default.MulticastDNS
+			}
+
+			// Apply Reconcile default if not set in config
+			if !loadedConfig.Default.Reconcile {
+				loadedConfig.Default.Reconcile = defaultConfig.Default.Reconcile
+			}
+
+			// Apply FilterType default if not set in config
+			if loadedConfig.Default.FilterType == "" {
+				loadedConfig.Default.FilterType = defaultConfig.Default.FilterType
+			}
+
 			return loadedConfig
 		} else if os.IsNotExist(err) {
 			Debugf("Configuration file %s does not exist", configFile)
@@ -565,7 +596,6 @@ func main() {
 	logTimestamps_arg := flag.Bool("log-timestamps", false, "Enable timestamps in logs. Default: false")
 	tokenFile_arg := flag.String("token-file", "/var/lib/zerotier-one/authtoken.secret", "Path to the ZeroTier authentication token file. Default: /var/lib/zerotier-one/authtoken.secret")
 
-	// Unified filter arguments - blank include means 'all', blank exclude means 'none'
 	filterType_arg := flag.String("filter-type", "none", "Type of filter to apply (interface, network, network_id, or none). Default: none")
 	filterInclude_arg := flag.String("filter-include", "", "Comma-separated list of items to include based on filter-type. Empty means 'all'.")
 	filterExclude_arg := flag.String("filter-exclude", "", "Comma-separated list of items to exclude based on filter-type. Empty means 'none'.")
@@ -578,7 +608,6 @@ func main() {
 	reconcile_arg := flag.Bool("reconcile", true, "Automatically remove left networks from systemd-networkd configuration")
 	token_arg := flag.String("token", "", "API token to use. Overrides token-file if provided.")
 
-	// Custom flag parsing to detect errors
 	flag.Parse()
 
 	// Check for args that could be flags
@@ -723,11 +752,11 @@ func main() {
 	}
 
 	if os.Geteuid() != 0 {
-		ErrorHandler("ERROR: You need to be root to run this program", nil, true)
+		ErrorHandler("You need to be root to run this program", nil, true)
 	}
 
 	if runtime.GOOS != "linux" {
-		ErrorHandler("ERROR: This tool is only needed on Linux", nil, true)
+		ErrorHandler("This tool is only needed on Linux", nil, true)
 	}
 
 	profileNames := []string{}
@@ -1198,6 +1227,13 @@ func SetLogLevel(level string) {
 		currentLogLevel = "debug"
 	} else {
 		currentLogLevel = "info"
+	}
+
+	// Set log package flags based on the logTimestamps setting
+	if logTimestamps {
+		log.SetFlags(log.LstdFlags)
+	} else {
+		log.SetFlags(0)
 	}
 }
 
