@@ -595,11 +595,9 @@ func main() {
 	logLevel_arg := flag.String("log-level", "info", "Set the logging level (info or debug). Default: info")
 	logTimestamps_arg := flag.Bool("log-timestamps", false, "Enable timestamps in logs. Default: false")
 	tokenFile_arg := flag.String("token-file", "/var/lib/zerotier-one/authtoken.secret", "Path to the ZeroTier authentication token file. Default: /var/lib/zerotier-one/authtoken.secret")
-
 	filterType_arg := flag.String("filter-type", "none", "Type of filter to apply (interface, network, network_id, or none). Default: none")
 	filterInclude_arg := flag.String("filter-include", "", "Comma-separated list of items to include based on filter-type. Empty means 'all'.")
 	filterExclude_arg := flag.String("filter-exclude", "", "Comma-separated list of items to exclude based on filter-type. Empty means 'none'.")
-
 	addReverseDomains_arg := flag.Bool("add-reverse-domains", false, "Add ip6.arpa and in-addr.arpa search domains. Default: false")
 	autoRestart_arg := flag.Bool("auto-restart", true, "Automatically restart systemd-networkd when things change. Default: true")
 	dnsOverTLS_arg := flag.Bool("dns-over-tls", false, "Automatically prefer DNS-over-TLS. Default: false")
