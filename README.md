@@ -72,15 +72,15 @@ To change the way the tool operates, you can pass various arguments via the comm
 - `-log-level`: Set the logging level (`info` or `debug`).
 - `-log-timestamps`: Enable timestamps in logs. Default: `false`.
 - `-dry-run`: Simulate changes without applying them.
-- `-mode`: Set the mode of operation (`networkd` or `resolved`) (default: autodetected).
+- `-mode`: Set the mode of operation (`auto` `networkd` or `resolved`) (default: autodetected).
 - `-host`: ZeroTier client host address (default: `http://localhost`).
 - `-port`: ZeroTier client port number (default: `9993`).
 - `-token-file`: Path to the ZeroTier authentication token file (default: `/var/lib/zerotier-one/authtoken.secret`).
 - `-token`: ZeroTier authentication token (overrides `-token-file` if provided).
 - `-add-reverse-domains`: Add reverse DNS search domains (e.g., `in-addr.arpa`, `ip6.arpa`) based on assigned IPs (default: false).
 - `-auto-restart`: (networkd) Automatically restart `systemd-networkd` when changes are detected (default: true).
-- `-dns-over-tls`: Enable DNS-over-TLS for supported configurations (default: false).
-- `-multicast-dns`: Enable multicast DNS (mDNS) for ZeroTier interfaces (default: false).
+- `-dns-over-tls`: (networkd) Enable DNS-over-TLS for supported configurations (default: false).
+- `-multicast-dns`: (networkd) Enable multicast DNS (mDNS) for ZeroTier interfaces (default: false).
 - `-reconcile`: (networkd) Remove unused network files when networks are no longer active (default: true).
 
 ### Filtering Networks and Interfaces
