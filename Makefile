@@ -29,7 +29,14 @@ release: clean build-all
 check-release:
 	@if git describe --tags --exact-match >/dev/null 2>&1; then \
 		if git diff-index --quiet HEAD --; then \
-			echo "Repository is clean and tagged. Ready for release."; \
+			GIT_TAG=$$(git describe --tags --exact-match); \
+			if grep -q "version = \"$$GIT_TAG\"" flake.nix; then \
+				echo "Repository is clean and tagged. Tag $$GIT_TAG matches version in flake.nix. Ready for release."; \
+			else \
+				FLAKE_VERSION=$$(grep -o 'version = "[^"]*"' flake.nix | cut -d'"' -f2); \
+				echo "Error: Git tag ($$GIT_TAG) does not match version in flake.nix ($$FLAKE_VERSION)"; \
+				exit 1; \
+			fi; \
 		else \
 			echo "Repository is tagged but has uncommitted changes. Please commit or stash changes before release."; \
 			exit 1; \
