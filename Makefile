@@ -18,7 +18,7 @@ build-all:
 	GOOS=linux GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS) $(BUILD_FLAGS)" -o $(BINARY_NAME)_aarch64 $(BUILD_DIR)
 
 clean:
-	rm -f $(BINARY_NAME) $(BINARY_NAME)-x86_64 $(BINARY_NAME)-aarch64
+	rm -f $(BINARY_NAME) $(BINARY_NAME)_x86_64 $(BINARY_NAME)_aarch64
 
 install:
 	$(GO) install $(BUILD_DIR)
