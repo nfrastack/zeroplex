@@ -1,7 +1,23 @@
 ## 1.1.0-beta 2025-06-20 <dave at tiredofit dot ca>
 
-   ### Added
-   ### Changed
+### Added
+
+- Refactored codebase into modular packages for better maintainability
+- New package structure:
+  - `pkg/config` - Configuration management and validation
+  - `pkg/logger` - Centralized logging functionality
+  - `pkg/client` - ZeroTier API client handling
+  - `pkg/utils` - Common utility functions
+  - `pkg/filters` - Network filtering logic
+  - `pkg/dns` - DNS-related functionality
+  - `pkg/modes` - Network mode handlers (networkd, resolved)
+
+### Changed
+
+- Broke apart monolithic main.go into logical packages
+- Improved code organization and separation of concerns
+- Enhanced error handling consistency across packages
+- Standardized logging interface throughout application
 
 ## 1.0.0 2025-05-08 <dave at tiredofit dot ca>
 

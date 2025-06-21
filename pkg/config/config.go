@@ -5,6 +5,7 @@
 package config
 
 import (
+	"zt-dns-companion/pkg/logger"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,6 +20,7 @@ type Config struct {
 }
 
 type Profile struct {
+	DaemonMode        bool                     `yaml:"daemon_mode"`
 	Mode              string                   `yaml:"mode"`
 	LogLevel          string                   `yaml:"log_level"`
 	Host              string                   `yaml:"host"`
@@ -30,9 +32,8 @@ type Profile struct {
 	MulticastDNS      bool                     `yaml:"multicast_dns"`
 	Reconcile         bool                     `yaml:"reconcile"`
 	TokenFile         string                   `yaml:"token_file"`
-	DaemonMode        bool                     `yaml:"daemon_mode"`         // Enable daemon mode
-	DaemonInterval    string                   `yaml:"daemon_interval"`     // Interval for daemon execution (e.g., "1m", "5m", "1h")
-	Filters           []map[string]interface{} `yaml:"filters,omitempty"`   // Advanced filters array
+	PollInterval      string                   `yaml:"poll_interval"`
+	Filters           []map[string]interface{} `yaml:"filters,omitempty"`
 }
 
 // HasAdvancedFilters checks if the profile has advanced filters configured
@@ -58,7 +59,7 @@ func DefaultConfig() Config {
 	return Config{
 		Default: Profile{
 			Mode:              "auto",
-			LogLevel:          "info",
+			LogLevel:          "verbose",
 			Host:              "http://localhost",
 			Port:              9993,
 			DNSOverTLS:        false,
@@ -68,51 +69,68 @@ func DefaultConfig() Config {
 			MulticastDNS:      false,
 			Reconcile:         true,
 			TokenFile:         "/var/lib/zerotier-one/authtoken.secret",
-			DaemonMode:        true,  // Default to daemon mode
-			DaemonInterval:    "1m",  // Default to 1 minute
+	    	DaemonMode:        true,
+	    	PollInterval:      "1m",
 		},
 		Profiles: make(map[string]Profile),
 	}
 }
 
 func LoadConfig(filePath string) (Config, error) {
+	logger.Trace(">>> LoadConfig(%s) called", filePath)
+	logger.Debug("Opening configuration file: %s", filePath)
+
 	file, err := os.Open(filePath)
 	if err != nil {
+		logger.Debug("Failed to open config file: %v", err)
 		return Config{}, err
 	}
 	defer file.Close()
 
 	var config Config
+	logger.Verbose("Parsing configuration file format...")
 
-	// Auto-detect format based on file extension
 	ext := strings.ToLower(filepath.Ext(filePath))
+	logger.Trace("Detected file extension: %s", ext)
+
 	switch ext {
 	case ".yaml", ".yml":
-		// YAML format
+		logger.Debug("Using YAML decoder for configuration")
 		decoder := yaml.NewDecoder(file)
 		if err := decoder.Decode(&config); err != nil {
+			logger.Error("Failed to parse YAML config: %v", err)
 			return Config{}, fmt.Errorf("failed to parse YAML config: %w", err)
 		}
+		logger.Verbose("YAML configuration parsed successfully")
 
 	default:
+		logger.Error("Unsupported config file format: %s", ext)
 		return Config{}, fmt.Errorf("unsupported config file format: %s (supported: .yaml, .yml)", ext)
 	}
 
+	logger.Debug("Configuration loaded: mode=%s, log_level=%s, daemon_mode=%v",
+		config.Default.Mode, config.Default.LogLevel, config.Default.DaemonMode)
+	logger.Trace("<<< LoadConfig() completed successfully")
 	return config, nil
 }
 
 func LoadConfiguration(configFile string) Config {
 	if configFile != "" {
+		logger.Verbose("Attempting to load configuration from: %s", configFile)
 		_, err := os.Stat(configFile)
 		if err == nil {
+			logger.Debug("Configuration file found, loading...")
 			loadedConfig, err := LoadConfig(configFile)
 			if err != nil {
 				if configFile != "/etc/zt-dns-companion.yaml" {
 					fmt.Fprintf(os.Stderr, "ERROR: Configuration file %s not found: %v\n", configFile, err)
 					os.Exit(1)
 				}
+				logger.Warn("Could not load config file, using defaults: %v", err)
 				return DefaultConfig()
 			}
+
+			logger.Debug("Configuration loaded successfully")
 
 			// Apply application defaults for any unset fields in the loaded config
 			defaultConfig := DefaultConfig()
@@ -120,20 +138,26 @@ func LoadConfiguration(configFile string) Config {
 			// Apply token file default if not set in config
 			if loadedConfig.Default.TokenFile == "" {
 				loadedConfig.Default.TokenFile = defaultConfig.Default.TokenFile
+				logger.Verbose("Applied default token file path: %s", defaultConfig.Default.TokenFile)
 			}
 
+			logger.Info("Using configuration from file: %s", configFile)
 			return loadedConfig
 		} else if os.IsNotExist(err) {
 			if configFile != "/etc/zt-dns-companion.yaml" {
 				fmt.Fprintf(os.Stderr, "ERROR: Configuration file %s not found: %v\n", configFile, err)
 				os.Exit(1)
 			}
+			logger.Verbose("Default config file not found, using built-in defaults")
 		} else {
 			fmt.Fprintf(os.Stderr, "ERROR: Checking configuration file existence: %v\n", err)
 			os.Exit(1)
 		}
+	} else {
+		logger.Verbose("No configuration file specified, using defaults")
 	}
 
+	logger.Info("Using default configuration")
 	return DefaultConfig()
 }
 
@@ -151,8 +175,8 @@ func ValidateConfig(cfg *Config) error {
 	}
 
 	logLevel := strings.ToLower(cfg.Default.LogLevel)
-	if logLevel != "info" && logLevel != "debug" {
-		return fmt.Errorf("invalid log level: %s (must be info or debug)", cfg.Default.LogLevel)
+	if logLevel != "error" && logLevel != "warn" && logLevel != "info" && logLevel != "verbose" && logLevel != "debug" && logLevel != "trace" {
+		return fmt.Errorf("invalid log level: %s (must be error, warn, info, verbose, debug, or trace)", cfg.Default.LogLevel)
 	}
 
 	// Validate profiles
@@ -167,8 +191,8 @@ func ValidateConfig(cfg *Config) error {
 
 		if profile.LogLevel != "" {
 			logLevel = strings.ToLower(profile.LogLevel)
-			if logLevel != "info" && logLevel != "debug" {
-				return fmt.Errorf("invalid log level in profile %s: %s (must be info or debug)",
+			if logLevel != "error" && logLevel != "warn" && logLevel != "info" && logLevel != "verbose" && logLevel != "debug" && logLevel != "trace" {
+				return fmt.Errorf("invalid log level in profile %s: %s (must be error, warn, info, verbose, debug, or trace)",
 					name, profile.LogLevel)
 			}
 		}
@@ -184,14 +208,12 @@ func SaveConfig(filePath string, config Config) error {
 	}
 	defer file.Close()
 
-	// Auto-detect format based on file extension
 	ext := strings.ToLower(filepath.Ext(filePath))
 	switch ext {
 	case ".yaml", ".yml":
-		// YAML format
 		encoder := yaml.NewEncoder(file)
 		defer encoder.Close()
-		encoder.SetIndent(2) // Set indent for better readability
+		encoder.SetIndent(2)
 		if err := encoder.Encode(config); err != nil {
 			return fmt.Errorf("failed to encode YAML config: %w", err)
 		}
@@ -225,8 +247,8 @@ func MergeProfiles(defaultProfile, selectedProfile Profile) Profile {
 	}
 
 	// Copy daemon configuration
-	if selectedProfile.DaemonInterval != "" {
-		mergedProfile.DaemonInterval = selectedProfile.DaemonInterval
+	if selectedProfile.PollInterval != "" {
+		mergedProfile.PollInterval = selectedProfile.PollInterval
 	}
 
 	// Copy Filters

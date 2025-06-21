@@ -1,8 +1,11 @@
 [Unit]
-Description=Update Zerotier per-interface DNS settings
+Description=ZeroTier DNS Companion
 Requires=zerotier-one.service
 After=zerotier-one.service
 
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/zt-dns-companion
+
+[Install]
+WantedBy=multi-user.target

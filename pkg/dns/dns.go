@@ -79,42 +79,56 @@ func CompareDNS(current, desired []string) bool {
 }
 
 func ConfigureDNSAndSearchDomains(interfaceName string, dnsServers, searchKeys []string, dryRun bool) {
+	logger.Trace("ConfigureDNSAndSearchDomains() started for interface: %s", interfaceName)
+	logger.Debug("Configuring DNS for interface: %s", interfaceName)
+	logger.Verbose("DNS servers to configure: %v", dnsServers)
+	logger.Verbose("Search domains to configure: %v", searchKeys)
+
 	if dryRun {
-		logger.DryRunf("Would set Interface: %s Search Domain: %s and DNS: %s", interfaceName, strings.Join(searchKeys, ", "), strings.Join(dnsServers, ", "))
+		logger.DryRunWithPrefix("dns", "Would set Interface: %s Search Domain: %s and DNS: %s", interfaceName, strings.Join(searchKeys, ", "), strings.Join(dnsServers, ", "))
 		return
 	}
 
+	logger.Trace("Querying current DNS configuration via resolvectl")
+	logger.Trace("Executing command: resolvectl dns %s", interfaceName)
 	output, err := utils.ExecuteCommand("resolvectl", "dns", interfaceName)
 	if err != nil {
-		logger.Debugf("Failed to query DNS via resolvectl for interface %s: %v", interfaceName, err)
-		logger.Debugf("Command output: %s", output)
+		logger.DebugWithPrefix("dns", "Failed to query DNS via resolvectl for interface %s: %v", interfaceName, err)
+		logger.DebugWithPrefix("dns", "Command output: %s", output)
 		fmt.Fprintf(os.Stderr, "Could not query DNS for interface %s. Please ensure the interface exists and resolvectl is configured correctly.\n", interfaceName)
 		return
 	}
+	logger.Debug("Command succeeded: resolvectl dns %s", interfaceName)
+	logger.Verbose("Command output length: %d characters", len(output))
 	currentDNS := utils.ParseResolvectlOutput(output, "Link ")
-	logger.Debugf("Parsed current DNS for interface %s: %v", interfaceName, currentDNS)
+	logger.DebugWithPrefix("dns", "Parsed current DNS for interface %s: %v", interfaceName, currentDNS)
 
+	logger.Trace("Querying current search domains via resolvectl")
+	logger.Trace("Executing command: resolvectl domain %s", interfaceName)
 	output, err = utils.ExecuteCommand("resolvectl", "domain", interfaceName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to query search domains via resolvectl for interface %s: %v\n", interfaceName, err)
 		return
 	}
+	logger.Debug("Command succeeded: resolvectl domain %s", interfaceName)
+	logger.Verbose("Command output length: %d characters", len(output))
 	currentDomains := utils.ParseResolvectlOutput(output, "Link ")
-	logger.Debugf("Parsed current search domains for interface %s: %v", interfaceName, currentDomains)
+	logger.DebugWithPrefix("dns", "Parsed current search domains for interface %s: %v", interfaceName, currentDomains)
 
-	logger.Debugf("Desired DNS for interface %s: %v", interfaceName, dnsServers)
-	logger.Debugf("Desired search domains for interface %s: %v", interfaceName, searchKeys)
+	logger.DebugWithPrefix("dns", "Desired DNS for interface %s: %v", interfaceName, dnsServers)
+	logger.DebugWithPrefix("dns", "Desired search domains for interface %s: %v", interfaceName, searchKeys)
 
 	sameDNS := CompareDNS(currentDNS, dnsServers)
 	sameDomains := CompareDNS(currentDomains, searchKeys)
 
-	logger.Debugf("Comparison result for interface %s: sameDNS=%v, sameDomains=%v", interfaceName, sameDNS, sameDomains)
+	logger.DebugWithPrefix("dns", "Comparison result for interface %s: sameDNS=%v, sameDomains=%v", interfaceName, sameDNS, sameDomains)
 
 	if sameDNS && sameDomains {
-		logger.Infof("No changes needed for interface %s; DNS and search domains are already up-to-date", interfaceName)
+		logger.InfoWithPrefix("dns", "No changes needed for interface %s; DNS and search domains are already up-to-date", interfaceName)
 		return
 	}
 
+	logger.Verbose("DNS configuration changes needed for interface %s", interfaceName)
 	// Configure DNS and domains using resolvectl
 	configureViaDbus(interfaceName, dnsServers, searchKeys)
 }

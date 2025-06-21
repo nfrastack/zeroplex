@@ -35,15 +35,18 @@ func CommandExists(cmd string) bool {
 func ExecuteCommand(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
 	output, err := cmd.CombinedOutput()
+
 	if err != nil {
 		return "", fmt.Errorf("command execution failed: %s %v\nOutput: %s", name, args, string(output))
 	}
+
 	return string(output), nil
 }
 
 func ServiceExists(serviceName string) bool {
 	cmd := exec.Command("systemctl", "status", serviceName)
-	return cmd.Run() == nil
+	err := cmd.Run()
+	return err == nil
 }
 
 func ParseResolvectlOutput(output string, prefix string) []string {

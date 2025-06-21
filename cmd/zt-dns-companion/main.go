@@ -67,7 +67,7 @@ func main() {
 			fmt.Println(versionString(true))
 			os.Exit(0)
 		}
-		
+
 		log.Fatal(err)
 	}
 }

@@ -149,9 +149,9 @@
             };
 
             logLevel = lib.mkOption {
-              type = lib.types.enum [ "debug" "info" ];
-              default = "info";
-              description = "Set the logging level (info or debug).";
+              type = lib.types.enum [ "error" "warn" "info" "verbose" "debug" "trace" ];
+              default = "verbose";
+              description = "Set the logging level (error, warn, info, verbose, debug, or trace).";
             };
 
             tokenFile = lib.mkOption {
@@ -166,10 +166,10 @@
               description = "Run in daemon mode with periodic execution.";
             };
 
-            daemonInterval = lib.mkOption {
+            pollInterval = lib.mkOption {
               type = lib.types.str;
               default = "1m";
-              description = "Interval for daemon execution (e.g., 1m, 5m, 1h, 1d).";
+              description = "Interval for polling execution (e.g., 1m, 5m, 1h, 1d).";
             };
 
           };
@@ -182,12 +182,12 @@
             system.activationScripts = lib.mkIf (
               # Only create the file if user set custom options or has profiles
               cfg.mode != "auto" ||
-              cfg.logLevel != "info" ||
+              cfg.logLevel != "verbose" ||
               cfg.host != "http://localhost" ||
               cfg.port != 9993 ||
               cfg.tokenFile != "/var/lib/zerotier-one/authtoken.secret" ||
               cfg.daemonMode != true ||
-              cfg.daemonInterval != "1m" ||
+              cfg.pollInterval != "1m" ||
               (cfg.profiles != {})
             ) {
               zt-dns-companion-config = {
@@ -211,7 +211,7 @@
                     reconcile: ${lib.boolToString cfg.reconcile}
                     token_file: "${cfg.tokenFile}"
                     daemon_mode: ${lib.boolToString cfg.daemonMode}
-                    daemon_interval: "${cfg.daemonInterval}"
+                    poll_interval: "${cfg.pollInterval}"
 
                   ${lib.optionalString (cfg.profiles != {}) ''
                   profiles:
@@ -266,7 +266,7 @@
                       cfg.port != 9993 ||
                       cfg.tokenFile != "/var/lib/zerotier-one/authtoken.secret" ||
                       cfg.daemonMode != true ||
-                      cfg.daemonInterval != "1m" ||
+                      cfg.pollInterval != "1m" ||
                       (cfg.profiles != {});
 
                     configFileArg = if needsConfigFile then "--config-file ${cfg.configFile}" else "";

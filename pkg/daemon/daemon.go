@@ -5,12 +5,12 @@
 package daemon
 
 import (
+	"zt-dns-companion/pkg/logger"
+	"zt-dns-companion/pkg/utils"
+
 	"context"
 	"sync"
 	"time"
-
-	"zt-dns-companion/pkg/logger"
-	"zt-dns-companion/pkg/utils"
 )
 
 // TaskFunc represents a function that the daemon will execute periodically
@@ -30,20 +30,28 @@ type Daemon struct {
 
 // New creates a new daemon instance
 func New(intervalStr string, task TaskFunc) (*Daemon, error) {
+	logger.Trace("Creating new daemon instance with interval: %s", intervalStr)
+
 	interval, err := utils.ParseInterval(intervalStr)
 	if err != nil {
+		logger.Error("Failed to parse daemon interval '%s': %v", intervalStr, err)
 		return nil, err
 	}
 
+	logger.Trace("Parsed daemon interval: %s -> %v", intervalStr, interval)
+
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return &Daemon{
+	daemon := &Daemon{
 		interval:  interval,
 		task:      task,
 		ctx:       ctx,
 		cancel:    cancel,
 		logPrefix: "[daemon]",
-	}, nil
+	}
+
+	logger.Debug("Daemon instance created successfully")
+	return daemon, nil
 }
 
 // SetLogPrefix sets a custom log prefix for this daemon
@@ -61,34 +69,34 @@ func (d *Daemon) Start() error {
 	}
 
 	if d.interval == 0 {
-		logger.Infof("%s Daemon disabled (interval: 0)", d.logPrefix)
+		logger.InfoWithPrefix("daemon", "Daemon disabled (interval: 0)")
 		return nil
 	}
 
 	d.running = true
-	logger.Infof("%s Starting daemon with interval: %s", d.logPrefix, utils.FormatInterval(d.interval))
+	logger.InfoWithPrefix("daemon", "Starting daemon with interval: %s", utils.FormatInterval(d.interval))
 
 	// Run initial task immediately
 	go func() {
-		logger.Debugf("%s Running initial task", d.logPrefix)
+		logger.DebugWithPrefix("daemon", "Running initial task")
 		if err := d.task(d.ctx); err != nil {
-			logger.Errorf("%s Initial task failed: %v", d.logPrefix, err)
+			logger.ErrorWithPrefix("daemon", "Initial task failed: %v", err)
 		}
 
 		// Start periodic execution
 		d.ticker = time.NewTicker(d.interval)
 		defer d.ticker.Stop()
 
-		logger.Debugf("%s Entering main execution loop", d.logPrefix)
+		logger.DebugWithPrefix("daemon", "Entering main execution loop")
 		for {
 			select {
 			case <-d.ctx.Done():
-				logger.Debugf("%s Context cancelled, stopping daemon", d.logPrefix)
+				logger.DebugWithPrefix("daemon", "Context cancelled, stopping daemon")
 				return
 			case <-d.ticker.C:
-				logger.Debugf("%s Executing periodic task", d.logPrefix)
+				logger.DebugWithPrefix("daemon", "Executing periodic task")
 				if err := d.task(d.ctx); err != nil {
-					logger.Errorf("%s Task execution failed: %v", d.logPrefix, err)
+					logger.ErrorWithPrefix("daemon", "Task execution failed: %v", err)
 				}
 			}
 		}
@@ -106,7 +114,7 @@ func (d *Daemon) Stop() {
 		return
 	}
 
-	logger.Infof("%s Stopping daemon", d.logPrefix)
+	logger.InfoWithPrefix("daemon", "Stopping daemon")
 	d.cancel()
 	if d.ticker != nil {
 		d.ticker.Stop()

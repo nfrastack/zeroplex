@@ -5,214 +5,256 @@
 package app
 
 import (
-	"zt-dns-companion/pkg/cli"
-	"zt-dns-companion/pkg/client"
 	"zt-dns-companion/pkg/config"
-	"zt-dns-companion/pkg/filters"
 	"zt-dns-companion/pkg/logger"
-	"zt-dns-companion/pkg/modes"
-	appservice "zt-dns-companion/pkg/service"
+	"zt-dns-companion/pkg/runner"
+	"zt-dns-companion/pkg/service"
 	"zt-dns-companion/pkg/utils"
 
-
-	"context"
+	"flag"
 	"fmt"
-	"os"
-	"runtime"
-	"strings"
-
-	"github.com/zerotier/go-zerotier-one/service"
 )
 
-var Version = "dev"
-
-// App represents the main application
 type App struct {
-	flags         *cli.Flags
-	explicitFlags map[string]bool
-	config        config.Config
+	cfg    config.Config
+	runner *runner.Runner
 }
 
-// New creates a new App instance
 func New() *App {
-	flags, explicitFlags := cli.ParseFlags()
-	return &App{
-		flags:         flags,
-		explicitFlags: explicitFlags,
-	}
+	return &App{}
 }
 
-// Run executes the main application logic
+// Run starts the application
 func (a *App) Run() error {
-	// Initialize logging
-	logger.SetTimestamps(*a.flags.LogTimestamps)
-	logger.SetLogLevel(*a.flags.LogLevel)
-
-	// Load and validate configuration
-	a.config = appservice.ValidateAndLoadConfig(*a.flags.ConfigFile)
-
-	// Update logging settings with config values
-	logger.SetTimestamps(*a.flags.LogTimestamps || a.config.Default.LogTimestamps)
-
-	if *a.flags.DryRun {
-		logger.Debugf("Dry-run mode enabled")
+	// Parse command line arguments
+	cfg, dryRun, help, err := a.parseArgs()
+	if err != nil {
+		return err
 	}
 
-	// Apply explicit flags
-	cli.ApplyExplicitFlags(&a.config, a.flags, a.explicitFlags)
-
-	// Handle version and help flags
-	if *a.flags.Version {
-		fmt.Printf("%s\n", Version)
-		os.Exit(0)
-	}
-
-	if *a.flags.Help {
+	if help {
 		return fmt.Errorf("help requested")
 	}
 
-	// Validate runtime requirements
-	if err := a.validateRuntime(); err != nil {
-		return err
-	}
+	a.cfg = cfg
 
-	// Process profiles
-	a.processProfiles()
+	// Initialize logger based on config
+	logger.SetLogLevel(cfg.Default.LogLevel)
+	logger.SetTimestamps(cfg.Default.LogTimestamps)
 
-	// Handle mode detection
-	modeDetected := a.handleModeDetection()
-
-	// Adjust port if needed
-	a.adjustPort()
-
-	// Create ZeroTier client and fetch networks
-	networks, err := a.createClientAndFetchNetworks()
-	if err != nil {
-		return err
-	}
-
-	// Apply filters
-	filters.ApplyUnifiedFilters(networks, a.config.Default)
-
-	// Run appropriate mode
-	return a.runMode(networks, modeDetected)
+	// Create and run the runner
+	a.runner = runner.New(cfg, dryRun)
+	return a.runner.Run()
 }
 
-// validateRuntime checks if the app can run in the current environment
-func (a *App) validateRuntime() error {
-	if os.Geteuid() != 0 {
-		utils.ErrorHandler("You need to be root to run this program", nil, true)
+// parseArgs parses command line arguments and loads configuration
+func (a *App) parseArgs() (config.Config, bool, bool, error) {
+	logger.Trace("Starting command line argument parsing")
+
+	// Define flags
+	help := flag.Bool("help", false, "Show help message and exit")
+	version := flag.Bool("version", false, "Show version and exit")
+	configFile := flag.String("config-file", "/etc/zt-dns-companion.yaml", "Path to the configuration file")
+	dryRun := flag.Bool("dry-run", false, "Enable dry-run mode. No changes will be made.")
+	mode := flag.String("mode", "", "Mode of operation (networkd, resolved, or auto).")
+	host := flag.String("host", "", "ZeroTier client host address.")
+	port := flag.Int("port", 0, "ZeroTier client port number.")
+	logLevel := flag.String("log-level", "", "Set the logging level (error, warn, info, verbose, debug, or trace).")
+	logTimestamps := flag.Bool("log-timestamps", false, "Enable timestamps in logs.")
+	tokenFile := flag.String("token-file", "", "Path to the ZeroTier authentication token file.")
+	token := flag.String("token", "", "API token to use. Overrides token-file if provided.")
+
+	logger.Verbose("Defined command line flags")
+
+	// Daemon-specific flags
+	daemonMode := flag.Bool("daemon", false, "Run in daemon mode with periodic execution (default: true)")
+	pollInterval := flag.String("poll-interval", "", "Interval for polling execution (e.g., 1m, 5m, 1h)")
+	oneshot := flag.Bool("oneshot", false, "Run once and exit (disable daemon mode)")
+
+	// DNS flags
+	addReverseDomains := flag.Bool("add-reverse-domains", false, "Add ip6.arpa and in-addr.arpa search domains.")
+	autoRestart := flag.Bool("auto-restart", false, "Automatically restart systemd-networkd when things change.")
+	dnsOverTLS := flag.Bool("dns-over-tls", false, "Automatically prefer DNS-over-TLS.")
+	multicastDNS := flag.Bool("multicast-dns", false, "Enable Multicast DNS (mDNS).")
+	reconcile := flag.Bool("reconcile", false, "Automatically remove left networks from systemd-networkd configuration")
+
+	// Profile selection
+	selectedProfile := flag.String("profile", "", "Specify a profile to use from the configuration file.")
+
+	logger.Verbose("Defined daemon and DNS specific flags")
+
+	// Parse flags
+	flag.Parse()
+	logger.Debug("Command line flags parsed successfully")
+
+	if *help {
+		logger.Trace("Help flag requested, returning early")
+		return config.Config{}, false, true, nil
 	}
 
-	if runtime.GOOS != "linux" {
-		utils.ErrorHandler("This tool is only needed on Linux", nil, true)
+	if *version {
+		logger.Trace("Version flag requested, returning early")
+		return config.Config{}, false, false, fmt.Errorf("version requested")
 	}
 
-	return nil
-}
+	// Load configuration
+	logger.Verbose("Loading configuration from file: %s", *configFile)
+	cfg := service.ValidateAndLoadConfig(*configFile)
+	logger.Debug("Configuration loaded and validated successfully")
 
-// processProfiles handles profile selection and merging
-func (a *App) processProfiles() {
-	profileNames := []string{}
-	for name := range a.config.Profiles {
-		profileNames = append(profileNames, name)
+	// Track which flags were explicitly set
+	explicitFlags := make(map[string]bool)
+	flag.Visit(func(f *flag.Flag) {
+		explicitFlags[f.Name] = true
+		logger.Trace("Explicit flag detected: %s = %s", f.Name, f.Value.String())
+	})
+
+	logger.Verbose("Found %d explicitly set command line flags", len(explicitFlags))
+
+	// Apply explicit flags over config/defaults
+	if explicitFlags["daemon"] {
+		logger.Trace("Applying explicit daemon flag: %t", *daemonMode)
+		cfg.Default.DaemonMode = *daemonMode
+	}
+	if explicitFlags["poll-interval"] {
+		logger.Trace("Applying explicit poll-interval flag: %s", *pollInterval)
+		cfg.Default.PollInterval = *pollInterval
+	}
+	// Handle oneshot flag - if set, disable daemon mode
+	if explicitFlags["oneshot"] && *oneshot {
+		cfg.Default.DaemonMode = false
+		logger.Debugf("Oneshot mode enabled - daemon mode disabled")
+	}
+	if explicitFlags["mode"] {
+		logger.Trace("Applying explicit mode flag: %s", *mode)
+		cfg.Default.Mode = *mode
+	}
+	if explicitFlags["host"] {
+		logger.Trace("Applying explicit host flag: %s", *host)
+		cfg.Default.Host = *host
+	}
+	if explicitFlags["port"] {
+		logger.Trace("Applying explicit port flag: %d", *port)
+		cfg.Default.Port = *port
+	}
+	if explicitFlags["log-level"] {
+		logger.Trace("Applying explicit log-level flag: %s", *logLevel)
+		cfg.Default.LogLevel = *logLevel
+	}
+	if explicitFlags["log-timestamps"] {
+		logger.Trace("Applying explicit log-timestamps flag: %t", *logTimestamps)
+		cfg.Default.LogTimestamps = *logTimestamps
+	}
+	if explicitFlags["token-file"] {
+		logger.Trace("Applying explicit token-file flag: %s", *tokenFile)
+		cfg.Default.TokenFile = *tokenFile
+	}
+	// Note: token flag is handled by client.LoadAPIToken function during execution
+	_ = token // Suppress unused variable warning
+	if explicitFlags["add-reverse-domains"] {
+		logger.Trace("Applying explicit add-reverse-domains flag: %t", *addReverseDomains)
+		cfg.Default.AddReverseDomains = *addReverseDomains
+	}
+	if explicitFlags["auto-restart"] {
+		logger.Trace("Applying explicit auto-restart flag: %t", *autoRestart)
+		cfg.Default.AutoRestart = *autoRestart
+	}
+	if explicitFlags["dns-over-tls"] {
+		logger.Trace("Applying explicit dns-over-tls flag: %t", *dnsOverTLS)
+		cfg.Default.DNSOverTLS = *dnsOverTLS
+	}
+	if explicitFlags["multicast-dns"] {
+		logger.Trace("Applying explicit multicast-dns flag: %t", *multicastDNS)
+		cfg.Default.MulticastDNS = *multicastDNS
+	}
+	if explicitFlags["reconcile"] {
+		logger.Trace("Applying explicit reconcile flag: %t", *reconcile)
+		cfg.Default.Reconcile = *reconcile
 	}
 
-	if len(a.config.Profiles) > 0 {
-		logger.Debugf("Profiles found in configuration: %v", profileNames)
-		if *a.flags.SelectedProfile == "" {
-			logger.Debugf("Loading default profile.")
-		} else if selectedProfile, ok := a.config.Profiles[*a.flags.SelectedProfile]; ok {
-			logger.Debugf("Applying selected profile: %s", *a.flags.SelectedProfile)
-			a.config.Default = config.MergeProfiles(a.config.Default, selectedProfile)
+	// Handle profile selection
+	if *selectedProfile != "" {
+		if profile, exists := cfg.Profiles[*selectedProfile]; exists {
+			logger.DebugWithPrefix("config", "Applying selected profile: %s", *selectedProfile)
+			cfg.Default = mergeProfiles(cfg.Default, profile)
 		} else {
-			logger.Debugf("Selected profile '%s' not found. Using default profile.", *a.flags.SelectedProfile)
+			logger.DebugWithPrefix("config", "Selected profile '%s' not found. Using default profile.", *selectedProfile)
 		}
+	}
+
+	// Validate daemon configuration
+	if cfg.Default.DaemonMode {
+		logger.Verbose("Validating daemon mode configuration")
+		if cfg.Default.PollInterval == "" {
+			cfg.Default.PollInterval = "1m" // Default interval
+			logger.Debug("Set default poll interval to 1m")
+		}
+
+		// Validate interval
+		if _, err := utils.ParseInterval(cfg.Default.PollInterval); err != nil {
+			logger.Error("Invalid poll interval '%s': %v", cfg.Default.PollInterval, err)
+			return config.Config{}, false, false, fmt.Errorf("invalid poll interval '%s': %w", cfg.Default.PollInterval, err)
+		}
+		logger.Verbose("Daemon mode configured with interval: %s", cfg.Default.PollInterval)
 	} else {
-		logger.Debugf("Using default profile")
+		logger.Verbose("One-shot mode configured")
 	}
+
+	logger.Debug("Configuration parsing completed successfully")
+	logger.Trace("Final configuration - Mode: %s, LogLevel: %s, DaemonMode: %t, PollInterval: %s",
+		cfg.Default.Mode, cfg.Default.LogLevel, cfg.Default.DaemonMode, cfg.Default.PollInterval)
+
+	return cfg, *dryRun, false, nil
 }
 
-// handleModeDetection handles automatic mode detection
-func (a *App) handleModeDetection() bool {
-	var modeDetected bool
-	if *a.flags.Mode == "auto" || a.config.Default.Mode == "auto" {
-		a.config.Default.Mode, modeDetected = appservice.DetectMode()
-	} else if *a.flags.Mode != "" {
-		a.config.Default.Mode = *a.flags.Mode
-	} else {
-		modeDetected = false
+// mergeProfiles merges a selected profile with the default profile
+func mergeProfiles(defaultProfile, selectedProfile config.Profile) config.Profile {
+	merged := defaultProfile
+
+	if selectedProfile.Mode != "" {
+		merged.Mode = selectedProfile.Mode
 	}
-	return modeDetected
-}
-
-// adjustPort adjusts the port based on configuration
-func (a *App) adjustPort() {
-	if *a.flags.Port == 9993 {
-		if a.config.Default.Port != 0 {
-			*a.flags.Port = a.config.Default.Port
-		}
+	if selectedProfile.LogLevel != "" {
+		merged.LogLevel = selectedProfile.LogLevel
 	}
-}
-
-// createClientAndFetchNetworks creates ZeroTier client and fetches networks
-func (a *App) createClientAndFetchNetworks() (*service.GetNetworksResponse, error) {
-	ztBaseURL := fmt.Sprintf("%s:%d", a.config.Default.Host, *a.flags.Port)
-
-	apiToken := client.LoadAPIToken(a.config.Default.TokenFile, *a.flags.Token)
-	_ = apiToken // Placeholder to ensure the variable is used without exposing it in logs or functionality
-
-	sAPI, err := client.NewServiceAPI(a.config.Default.TokenFile)
-	if err != nil {
-		utils.ErrorHandler(fmt.Sprintf("Failed to initialize service API client: %v", err), err, true)
+	if selectedProfile.Host != "" {
+		merged.Host = selectedProfile.Host
+	}
+	if selectedProfile.Port != 0 {
+		merged.Port = selectedProfile.Port
+	}
+	if selectedProfile.TokenFile != "" {
+		merged.TokenFile = selectedProfile.TokenFile
+	}
+	if selectedProfile.PollInterval != "" {
+		merged.PollInterval = selectedProfile.PollInterval
 	}
 
-	ztClient, err := service.NewClient(ztBaseURL, service.WithHTTPClient(sAPI))
-	if err != nil {
-		utils.ErrorHandler(fmt.Sprintf("Failed to create ZeroTier client: %v", err), err, true)
+	if len(selectedProfile.Filters) > 0 {
+		merged.Filters = selectedProfile.Filters
 	}
 
-	logger.Debugf("Fetching networks from ZeroTier API using base URL: %s", ztBaseURL)
-	resp, err := ztClient.GetNetworks(context.Background())
-	if err != nil {
-		utils.ErrorHandler("Failed to get networks from ZeroTier client", err, true)
+	if selectedProfile.DNSOverTLS {
+		merged.DNSOverTLS = true
+	}
+	if selectedProfile.AddReverseDomains {
+		merged.AddReverseDomains = true
+	}
+	if selectedProfile.LogTimestamps {
+		merged.LogTimestamps = true
+	}
+	if selectedProfile.MulticastDNS {
+		merged.MulticastDNS = true
+	}
+	if selectedProfile.DaemonMode {
+		merged.DaemonMode = true
+	}
+	if !selectedProfile.AutoRestart {
+		merged.AutoRestart = false
+	}
+	if !selectedProfile.Reconcile {
+		merged.Reconcile = false
 	}
 
-	networks, err := service.ParseGetNetworksResponse(resp)
-	if err != nil {
-		logger.Debugf("Failed to parse networks response: %v", err)
-		utils.ErrorHandler("Failed to parse networks response", err, true)
-	}
-
-	return networks, nil
-}
-
-// runMode executes the appropriate mode
-func (a *App) runMode(networks *service.GetNetworksResponse, modeDetected bool) error {
-	switch a.config.Default.Mode {
-	case "networkd":
-		logger.Debugf("Running in networkd mode%s", func() string {
-			if modeDetected {
-				return " (detected)"
-			}
-			return ""
-		}())
-		modes.RunNetworkdMode(networks, *a.flags.AddReverseDomains, *a.flags.AutoRestart, *a.flags.DNSOverTLS, *a.flags.DryRun, *a.flags.MulticastDNS, *a.flags.Reconcile)
-	case "resolved":
-		output, err := utils.ExecuteCommand("systemctl", "is-active", "systemd-resolved.service")
-		if err != nil || strings.TrimSpace(output) != "active" {
-			utils.ErrorHandler("systemd-resolved is not running. Resolved mode requires systemd-resolved to be active.", err, true)
-		}
-		logger.Debugf("Running in resolved mode%s", func() string {
-			if modeDetected {
-				return " (detected)"
-			}
-			return ""
-		}())
-		logger.Debugf("systemd-resolved is running and active")
-		modes.RunResolvedMode(networks, *a.flags.AddReverseDomains, *a.flags.DryRun)
-	default:
-		utils.ErrorHandler("Invalid mode specified in configuration", nil, true)
-	}
-	return nil
+	return merged
 }

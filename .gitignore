@@ -1,2 +1,16 @@
-result
+# Devenv
+.devenv*
+devenv.local.nix
+
+# direnv
+.direnv
+
+# pre-commit
+.pre-commit-config.yaml
+
+bin/
+zt-dns-companion.yml
+zt-dns-companion
 result/
+
+.vscode/settings.json

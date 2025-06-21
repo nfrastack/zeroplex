@@ -13,7 +13,7 @@ default:
   reconcile: true
   token_file: "/var/lib/zerotier-one/authtoken.secret"
   daemon_mode: true  # Default to daemon mode
-  daemon_interval: "1m"
+  poll_interval: "1m"
 
 profiles:
   # Development profile with debug logging and daemon mode
@@ -21,7 +21,7 @@ profiles:
     log_level: "debug"
     log_timestamps: true
     daemon_mode: true
-    daemon_interval: "30s"
+    poll_interval: "30s"
     filters:
       - type: "interface"
         conditions:
