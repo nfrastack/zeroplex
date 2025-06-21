@@ -10,37 +10,48 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pelletier/go-toml"
 	"gopkg.in/yaml.v3"
 )
 
-var (
-	IncludeAllValues  = map[string]bool{"any": true, "ignore": true, "all": true, "": true} // Values that mean "include everything"
-	ExcludeNoneValues = map[string]bool{"none": true, "ignore": true, "": true}             // Values that mean "exclude nothing"
-)
-
 type Config struct {
-	Default  Profile            `toml:"default" yaml:"default"`
-	Profiles map[string]Profile `toml:"profiles" yaml:"profiles"`
+	Default  Profile            `yaml:"default"`
+	Profiles map[string]Profile `yaml:"profiles"`
 }
 
 type Profile struct {
-	Mode              string   `toml:"mode" yaml:"mode"`
-	LogLevel          string   `toml:"log_level" yaml:"log_level"`
-	Host              string   `toml:"host" yaml:"host"`
-	Port              int      `toml:"port" yaml:"port"`
-	DNSOverTLS        bool     `toml:"dns_over_tls" yaml:"dns_over_tls"`
-	AutoRestart       bool     `toml:"auto_restart" yaml:"auto_restart"`
-	AddReverseDomains bool     `toml:"add_reverse_domains" yaml:"add_reverse_domains"`
-	LogTimestamps     bool     `toml:"log_timestamps" yaml:"log_timestamps"`
-	MulticastDNS      bool     `toml:"multicast_dns" yaml:"multicast_dns"`
-	Reconcile         bool     `toml:"reconcile" yaml:"reconcile"`
-	FilterType        string   `toml:"filter_type" yaml:"filter_type"`       // "interface", "network", "network_id", or "none"
-	FilterInclude     []string `toml:"filter_include" yaml:"filter_include"` // Items to include, depending on FilterType
-	FilterExclude     []string `toml:"filter_exclude" yaml:"filter_exclude"` // Items to exclude, depending on FilterType
-	TokenFile         string   `toml:"token_file" yaml:"token_file"`
-	DaemonMode        bool     `toml:"daemon_mode" yaml:"daemon_mode"`         // Enable daemon mode
-	DaemonInterval    string   `toml:"daemon_interval" yaml:"daemon_interval"` // Interval for daemon execution (e.g., "1m", "5m", "1h")
+	Mode              string                   `yaml:"mode"`
+	LogLevel          string                   `yaml:"log_level"`
+	Host              string                   `yaml:"host"`
+	Port              int                      `yaml:"port"`
+	DNSOverTLS        bool                     `yaml:"dns_over_tls"`
+	AutoRestart       bool                     `yaml:"auto_restart"`
+	AddReverseDomains bool                     `yaml:"add_reverse_domains"`
+	LogTimestamps     bool                     `yaml:"log_timestamps"`
+	MulticastDNS      bool                     `yaml:"multicast_dns"`
+	Reconcile         bool                     `yaml:"reconcile"`
+	TokenFile         string                   `yaml:"token_file"`
+	DaemonMode        bool                     `yaml:"daemon_mode"`         // Enable daemon mode
+	DaemonInterval    string                   `yaml:"daemon_interval"`     // Interval for daemon execution (e.g., "1m", "5m", "1h")
+	Filters           []map[string]interface{} `yaml:"filters,omitempty"`   // Advanced filters array
+}
+
+// HasAdvancedFilters checks if the profile has advanced filters configured
+func (p Profile) HasAdvancedFilters() bool {
+	return len(p.Filters) > 0
+}
+
+// GetAdvancedFilterConfig converts the profile's Filters to a FilterConfig
+func (p Profile) GetAdvancedFilterConfig() (map[string]interface{}, error) {
+	if !p.HasAdvancedFilters() {
+		return nil, fmt.Errorf("no advanced filters configured")
+	}
+
+	// Convert []map[string]interface{} to the format expected by filters package
+	structuredOptions := map[string]interface{}{
+		"filter": p.Filters,
+	}
+
+	return structuredOptions, nil
 }
 
 func DefaultConfig() Config {
@@ -56,12 +67,9 @@ func DefaultConfig() Config {
 			LogTimestamps:     false,
 			MulticastDNS:      false,
 			Reconcile:         true,
-			FilterType:        "none",
-			FilterInclude:     []string{},
-			FilterExclude:     []string{},
 			TokenFile:         "/var/lib/zerotier-one/authtoken.secret",
-			DaemonMode:        false,
-			DaemonInterval:    "1m", // Default to 1 minute
+			DaemonMode:        true,  // Default to daemon mode
+			DaemonInterval:    "1m",  // Default to 1 minute
 		},
 		Profiles: make(map[string]Profile),
 	}
@@ -75,7 +83,7 @@ func LoadConfig(filePath string) (Config, error) {
 	defer file.Close()
 
 	var config Config
-	
+
 	// Auto-detect format based on file extension
 	ext := strings.ToLower(filepath.Ext(filePath))
 	switch ext {
@@ -85,14 +93,9 @@ func LoadConfig(filePath string) (Config, error) {
 		if err := decoder.Decode(&config); err != nil {
 			return Config{}, fmt.Errorf("failed to parse YAML config: %w", err)
 		}
-	case ".toml", ".conf", "":
-		// TOML format (default for .conf files and files without extension)
-		decoder := toml.NewDecoder(file)
-		if err := decoder.Decode(&config); err != nil {
-			return Config{}, fmt.Errorf("failed to parse TOML config: %w", err)
-		}
+
 	default:
-		return Config{}, fmt.Errorf("unsupported config file format: %s (supported: .yaml, .yml, .toml, .conf)", ext)
+		return Config{}, fmt.Errorf("unsupported config file format: %s (supported: .yaml, .yml)", ext)
 	}
 
 	return config, nil
@@ -104,7 +107,7 @@ func LoadConfiguration(configFile string) Config {
 		if err == nil {
 			loadedConfig, err := LoadConfig(configFile)
 			if err != nil {
-				if configFile != "/etc/zt-dns-companion.conf" {
+				if configFile != "/etc/zt-dns-companion.yaml" {
 					fmt.Fprintf(os.Stderr, "ERROR: Configuration file %s not found: %v\n", configFile, err)
 					os.Exit(1)
 				}
@@ -119,24 +122,9 @@ func LoadConfiguration(configFile string) Config {
 				loadedConfig.Default.TokenFile = defaultConfig.Default.TokenFile
 			}
 
-			// Apply MulticastDNS default if not set in config
-			if !loadedConfig.Default.LogTimestamps && !loadedConfig.Default.MulticastDNS {
-				loadedConfig.Default.MulticastDNS = defaultConfig.Default.MulticastDNS
-			}
-
-			// Apply Reconcile default if not set in config
-			if !loadedConfig.Default.Reconcile {
-				loadedConfig.Default.Reconcile = defaultConfig.Default.Reconcile
-			}
-
-			// Apply FilterType default if not set in config
-			if loadedConfig.Default.FilterType == "" {
-				loadedConfig.Default.FilterType = defaultConfig.Default.FilterType
-			}
-
 			return loadedConfig
 		} else if os.IsNotExist(err) {
-			if configFile != "/etc/zt-dns-companion.conf" {
+			if configFile != "/etc/zt-dns-companion.yaml" {
 				fmt.Fprintf(os.Stderr, "ERROR: Configuration file %s not found: %v\n", configFile, err)
 				os.Exit(1)
 			}
@@ -167,12 +155,6 @@ func ValidateConfig(cfg *Config) error {
 		return fmt.Errorf("invalid log level: %s (must be info or debug)", cfg.Default.LogLevel)
 	}
 
-	filterType := strings.ToLower(cfg.Default.FilterType)
-	if filterType != "" && filterType != "none" &&
-		filterType != "interface" && filterType != "network" && filterType != "network_id" {
-		return fmt.Errorf("invalid filter type: %s (must be none, interface, network, or network_id)", cfg.Default.FilterType)
-	}
-
 	// Validate profiles
 	for name, profile := range cfg.Profiles {
 		if profile.Mode != "" {
@@ -188,15 +170,6 @@ func ValidateConfig(cfg *Config) error {
 			if logLevel != "info" && logLevel != "debug" {
 				return fmt.Errorf("invalid log level in profile %s: %s (must be info or debug)",
 					name, profile.LogLevel)
-			}
-		}
-
-		if profile.FilterType != "" {
-			filterType = strings.ToLower(profile.FilterType)
-			if filterType != "none" && filterType != "interface" &&
-				filterType != "network" && filterType != "network_id" {
-				return fmt.Errorf("invalid filter type in profile %s: %s (must be none, interface, network, or network_id)",
-					name, profile.FilterType)
 			}
 		}
 	}
@@ -222,14 +195,9 @@ func SaveConfig(filePath string, config Config) error {
 		if err := encoder.Encode(config); err != nil {
 			return fmt.Errorf("failed to encode YAML config: %w", err)
 		}
-	case ".toml", ".conf", "":
-		// TOML format (default)
-		encoder := toml.NewEncoder(file)
-		if err := encoder.Encode(config); err != nil {
-			return fmt.Errorf("failed to encode TOML config: %w", err)
-		}
+
 	default:
-		return fmt.Errorf("unsupported config file format: %s (supported: .yaml, .yml, .toml, .conf)", ext)
+		return fmt.Errorf("unsupported config file format: %s (supported: .yaml, .yml)", ext)
 	}
 
 	return nil
@@ -256,23 +224,17 @@ func MergeProfiles(defaultProfile, selectedProfile Profile) Profile {
 		mergedProfile.TokenFile = "/var/lib/zerotier-one/authtoken.secret"
 	}
 
-	if len(selectedProfile.FilterInclude) > 0 {
-		mergedProfile.FilterInclude = selectedProfile.FilterInclude
-	}
-	if len(selectedProfile.FilterExclude) > 0 {
-		mergedProfile.FilterExclude = selectedProfile.FilterExclude
-	}
-	if selectedProfile.FilterType != "" {
-		mergedProfile.FilterType = selectedProfile.FilterType
+	// Copy daemon configuration
+	if selectedProfile.DaemonInterval != "" {
+		mergedProfile.DaemonInterval = selectedProfile.DaemonInterval
 	}
 
-	if !selectedProfile.AutoRestart {
-		mergedProfile.AutoRestart = false
-	}
-	if !selectedProfile.Reconcile {
-		mergedProfile.Reconcile = false
+	// Copy Filters
+	if len(selectedProfile.Filters) > 0 {
+		mergedProfile.Filters = selectedProfile.Filters
 	}
 
+	// Boolean flags
 	if selectedProfile.DNSOverTLS {
 		mergedProfile.DNSOverTLS = true
 	}
@@ -284,6 +246,15 @@ func MergeProfiles(defaultProfile, selectedProfile Profile) Profile {
 	}
 	if selectedProfile.MulticastDNS {
 		mergedProfile.MulticastDNS = true
+	}
+	if selectedProfile.DaemonMode {
+		mergedProfile.DaemonMode = true
+	}
+	if !selectedProfile.AutoRestart {
+		mergedProfile.AutoRestart = false
+	}
+	if !selectedProfile.Reconcile {
+		mergedProfile.Reconcile = false
 	}
 
 	return mergedProfile
