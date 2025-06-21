@@ -5,99 +5,73 @@
 package daemon
 
 import (
-	"zt-dns-companion/pkg/logger"
-	"zt-dns-companion/pkg/utils"
-
+	"zt-dns-companion/pkg/logging"
+	
 	"context"
-	"sync"
+	"fmt"
 	"time"
 )
 
-// TaskFunc represents a function that the daemon will execute periodically
-type TaskFunc func(ctx context.Context) error
+// Interface for managing daemon functionality
+type Interface interface {
+	Start() error
+	Stop()
+	IsRunning() bool
+	SetLogPrefix(string)
+}
 
-// Daemon represents a background service that runs tasks at specified intervals
-type Daemon struct {
+// Simple implements basic daemon functionality
+type Simple struct {
 	interval    time.Duration
-	task        TaskFunc
-	ctx         context.Context
-	cancel      context.CancelFunc
-	running     bool
-	mu          sync.RWMutex
+	task        func(context.Context) error
 	ticker      *time.Ticker
+	stopChan    chan struct{}
+	running     bool
 	logPrefix   string
 }
 
-// New creates a new daemon instance
-func New(intervalStr string, task TaskFunc) (*Daemon, error) {
-	logger.Trace("Creating new daemon instance with interval: %s", intervalStr)
-
-	interval, err := utils.ParseInterval(intervalStr)
-	if err != nil {
-		logger.Error("Failed to parse daemon interval '%s': %v", intervalStr, err)
-		return nil, err
+// NewSimple creates a new daemon instance
+func NewSimple(interval time.Duration, task func(context.Context) error) *Simple {
+	return &Simple{
+		interval: interval,
+		task:     task,
+		stopChan: make(chan struct{}),
 	}
-
-	logger.Trace("Parsed daemon interval: %s -> %v", intervalStr, interval)
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	daemon := &Daemon{
-		interval:  interval,
-		task:      task,
-		ctx:       ctx,
-		cancel:    cancel,
-		logPrefix: "[daemon]",
-	}
-
-	logger.Debug("Daemon instance created successfully")
-	return daemon, nil
 }
 
-// SetLogPrefix sets a custom log prefix for this daemon
-func (d *Daemon) SetLogPrefix(prefix string) {
-	d.logPrefix = prefix
-}
-
-// Start begins the daemon's execution loop
-func (d *Daemon) Start() error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
+func (d *Simple) Start() error {
 	if d.running {
-		return nil // Already running
-	}
-
-	if d.interval == 0 {
-		logger.InfoWithPrefix("daemon", "Daemon disabled (interval: 0)")
-		return nil
+		return fmt.Errorf("daemon already running")
 	}
 
 	d.running = true
-	logger.InfoWithPrefix("daemon", "Starting daemon with interval: %s", utils.FormatInterval(d.interval))
+	d.ticker = time.NewTicker(d.interval)
 
-	// Run initial task immediately
 	go func() {
-		logger.DebugWithPrefix("daemon", "Running initial task")
-		if err := d.task(d.ctx); err != nil {
-			logger.ErrorWithPrefix("daemon", "Initial task failed: %v", err)
+		defer func() {
+			d.running = false
+			if d.ticker != nil {
+				d.ticker.Stop()
+			}
+		}()
+
+		// Execute task immediately on start
+		logging.DaemonLogger.Debug("Executing initial task")
+		if err := d.task(context.Background()); err != nil {
+			logging.DaemonLogger.Error("Initial task execution failed: %v", err)
 		}
 
-		// Start periodic execution
-		d.ticker = time.NewTicker(d.interval)
-		defer d.ticker.Stop()
-
-		logger.DebugWithPrefix("daemon", "Entering main execution loop")
+		// Then start the interval-based execution
 		for {
 			select {
-			case <-d.ctx.Done():
-				logger.DebugWithPrefix("daemon", "Context cancelled, stopping daemon")
-				return
 			case <-d.ticker.C:
-				logger.DebugWithPrefix("daemon", "Executing periodic task")
-				if err := d.task(d.ctx); err != nil {
-					logger.ErrorWithPrefix("daemon", "Task execution failed: %v", err)
+				logging.DaemonLogger.Debug("Executing scheduled task")
+				if err := d.task(context.Background()); err != nil {
+					logging.DaemonLogger.Error("Scheduled task execution failed: %v", err)
 				}
+			case <-d.stopChan:
+				logging.DaemonLogger.Debug("Daemon stopping")
+				return
 			}
 		}
 	}()
@@ -105,31 +79,19 @@ func (d *Daemon) Start() error {
 	return nil
 }
 
-// Stop gracefully stops the daemon
-func (d *Daemon) Stop() {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
+func (d *Simple) Stop() {
 	if !d.running {
 		return
 	}
 
-	logger.InfoWithPrefix("daemon", "Stopping daemon")
-	d.cancel()
-	if d.ticker != nil {
-		d.ticker.Stop()
-	}
+	close(d.stopChan)
 	d.running = false
 }
 
-// IsRunning returns whether the daemon is currently running
-func (d *Daemon) IsRunning() bool {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
+func (d *Simple) IsRunning() bool {
 	return d.running
 }
 
-// GetInterval returns the daemon's configured interval
-func (d *Daemon) GetInterval() time.Duration {
-	return d.interval
+func (d *Simple) SetLogPrefix(prefix string) {
+	d.logPrefix = prefix
 }

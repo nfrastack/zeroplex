@@ -6,9 +6,11 @@ package runner
 
 import (
 	"zt-dns-companion/pkg/config"
-	"zt-dns-companion/pkg/logger"
+	"zt-dns-companion/pkg/daemon"
+	"zt-dns-companion/pkg/logging"
 	"zt-dns-companion/pkg/modes"
 	"zt-dns-companion/pkg/service"
+	"zt-dns-companion/pkg/utils"
 
 	"context"
 	"fmt"
@@ -19,127 +21,55 @@ import (
 	"time"
 )
 
-// Daemon interface for managing daemon functionality
-type Daemon interface {
-	Start() error
-	Stop()
-	IsRunning() bool
-	SetLogPrefix(string)
-}
-
-// SimpleDaemon implements basic daemon functionality
-type SimpleDaemon struct {
-	interval    time.Duration
-	task        func(context.Context) error
-	ticker      *time.Ticker
-	stopChan    chan struct{}
-	running     bool
-	logPrefix   string
-}
-
-// NewSimpleDaemon creates a new daemon instance
-func NewSimpleDaemon(interval time.Duration, task func(context.Context) error) *SimpleDaemon {
-	return &SimpleDaemon{
-		interval: interval,
-		task:     task,
-		stopChan: make(chan struct{}),
-	}
-}
-
-func (d *SimpleDaemon) Start() error {
-	if d.running {
-		return fmt.Errorf("daemon already running")
-	}
-
-	d.running = true
-	d.ticker = time.NewTicker(d.interval)
-
-	go func() {
-		for {
-			select {
-			case <-d.ticker.C:
-				if err := d.task(context.Background()); err != nil {
-					logger.Error("%sTask execution failed: %v", d.logPrefix, err)
-				}
-			case <-d.stopChan:
-				d.ticker.Stop()
-				return
-			}
-		}
-	}()
-
-	return nil
-}
-
-func (d *SimpleDaemon) Stop() {
-	if !d.running {
-		return
-	}
-
-	close(d.stopChan)
-	d.running = false
-}
-
-func (d *SimpleDaemon) IsRunning() bool {
-	return d.running
-}
-
-func (d *SimpleDaemon) SetLogPrefix(prefix string) {
-	d.logPrefix = prefix
-}
-
 // Runner manages the execution of the ZT DNS Companion in both one-shot and daemon modes
 type Runner struct {
 	cfg      config.Config
 	dryRun   bool
-	ticker   *time.Ticker
-	stopChan chan struct{}
-	daemon   Daemon
+	daemon   daemon.Interface
 }
 
 // New creates a new runner instance
 func New(cfg config.Config, dryRun bool) *Runner {
 	return &Runner{
-		cfg:      cfg,
-		dryRun:   dryRun,
-		stopChan: make(chan struct{}),
+		cfg:    cfg,
+		dryRun: dryRun,
 	}
 }
 
 // Run executes the application based on configuration
 func (r *Runner) Run() error {
-	logger.Trace("Runner.Run() started")
+	logging.RunnerLogger.Trace("Runner.Run() started")
 
 	// Show banner and startup message only when actually running
 	r.showStartupBanner()
 
 	// Validate runtime environment
-	logger.Trace("Validating runtime environment")
+	logging.RunnerLogger.Trace("Validating runtime environment")
 	if err := r.validateEnvironment(); err != nil {
-		logger.Error("Environment validation failed: %v", err)
+		logging.RunnerLogger.Error("Environment validation failed: %v", err)
 		return err
 	}
-	logger.Trace("Runtime environment validation passed")
+	logging.RunnerLogger.Trace("Runtime environment validation passed")
 
 	// Auto-detect mode if needed
 	if r.cfg.Default.Mode == "auto" {
 		detectedMode, detected := service.DetectMode()
 		if detected {
 			r.cfg.Default.Mode = detectedMode
-			logger.Verbose("Auto-detected mode: %s", detectedMode)
+			logging.RunnerLogger.Verbose("Auto-detected mode: %s", detectedMode)
 		} else {
-			logger.Warn("Failed to auto-detect mode, keeping 'auto'")
+			logging.RunnerLogger.Warn("Failed to auto-detect mode, keeping 'auto'")
 		}
 	} else {
-		logger.Verbose("Using configured mode: %s", r.cfg.Default.Mode)
+		logging.RunnerLogger.Verbose("Using configured mode: %s", r.cfg.Default.Mode)
 	}
 
 	// Check if daemon mode is enabled
 	if r.cfg.Default.DaemonMode {
-		logger.Verbose("Starting in daemon mode")
+		logging.RunnerLogger.Verbose("Starting in daemon mode")
 		return r.runDaemon()
 	} else {
-		logger.Verbose("Starting in one-shot mode")
+		logging.RunnerLogger.Verbose("Starting in one-shot mode")
 		return r.runOnce()
 	}
 }
@@ -159,13 +89,13 @@ func (r *Runner) validateEnvironment() error {
 
 // runOnce executes the application once and exits
 func (r *Runner) runOnce() error {
-	logger.Infof("Running in one-shot mode")
+	logging.RunnerLogger.Info("Running in one-shot mode")
 	return r.executeTask(context.Background())
 }
 
 // runDaemon starts the application in daemon mode
 func (r *Runner) runDaemon() error {
-	logger.Verbose("Running in daemon mode with interval: %s", r.cfg.Default.PollInterval)
+	logging.RunnerLogger.Verbose("Running in daemon mode with interval: %s", r.cfg.Default.PollInterval)
 
 	// Parse interval
 	interval, err := time.ParseDuration(r.cfg.Default.PollInterval)
@@ -174,8 +104,8 @@ func (r *Runner) runDaemon() error {
 	}
 
 	// Create daemon
-	r.daemon = NewSimpleDaemon(interval, r.executeTask)
-	r.daemon.SetLogPrefix("[zt-dns-daemon] ")
+	r.daemon = daemon.NewSimple(interval, r.executeTask)
+	r.daemon.SetLogPrefix("[daemon] ")
 
 	// Set up signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
@@ -188,19 +118,21 @@ func (r *Runner) runDaemon() error {
 
 	// Wait for shutdown signal
 	sig := <-sigChan
-	logger.Infof("Received signal %s, shutting down gracefully...", sig)
+	logging.RunnerLogger.Info("Received signal %s, shutting down gracefully...", sig)
 
 	// Stop daemon
 	r.daemon.Stop()
-	logger.Infof("Daemon stopped successfully")
+	logging.RunnerLogger.Info("Daemon stopped successfully")
 
 	return nil
 }
 
 // executeTask performs the actual ZT DNS companion work
 func (r *Runner) executeTask(ctx context.Context) error {
+	taskLogger := logging.GetSubLogger("runner", "task")
+	
 	if r.dryRun {
-		logger.Infof("DRY RUN MODE: No actual changes will be made")
+		taskLogger.Info("DRY RUN MODE: No actual changes will be made")
 	}
 
 	// Create the appropriate mode runner
@@ -233,13 +165,8 @@ func (r *Runner) Stop() {
 
 // showStartupBanner displays the application banner and startup message
 func (r *Runner) showStartupBanner() {
-	// Detect if running under systemd (import from main)
-	invocation := os.Getenv("INVOCATION_ID") != ""
-	journal := os.Getenv("JOURNAL_STREAM") != ""
-	system := invocation || journal
-
 	// Show banner if not running under systemd
-	if !system {
+	if !utils.IsRunningUnderSystemd() {
 		fmt.Println()
 		fmt.Println("             .o88o.                                 .                       oooo")
 		fmt.Println("             888 \"\"                                .o8                       888")
@@ -251,11 +178,5 @@ func (r *Runner) showStartupBanner() {
 		fmt.Println()
 	}
 
-	// TODO: Get version from build flags properly
-	// For now, fallback to environment variable
-	version := os.Getenv("ZT_DNS_VERSION")
-	if version == "" {
-		version = "development"
-	}
-	fmt.Printf("Starting ZeroTier DNS Companion version: %s\n", version)
+	fmt.Printf("Starting ZeroTier DNS Companion version: %s\n", utils.GetVersion())
 }

@@ -122,7 +122,7 @@ func (sl *ScopedLogger) Debug(format string, args ...interface{}) {
 		}
 		// Include the prefix in the message
 		if sl.prefix != "" {
-			message = fmt.Sprintf("%s %s", sl.prefix, message)
+			message = fmt.Sprintf("[%s] %s", sl.prefix, message)
 		}
 		if GetLogger().showTimestamps {
 			timestamp := time.Now().Format("2006-01-02 15:04:05")
@@ -145,7 +145,7 @@ func (sl *ScopedLogger) Trace(format string, args ...interface{}) {
 		}
 		// Include the prefix in the message
 		if sl.prefix != "" {
-			message = fmt.Sprintf("%s %s", sl.prefix, message)
+			message = fmt.Sprintf("[%s] %s", sl.prefix, message)
 		}
 		if GetLogger().showTimestamps {
 			timestamp := time.Now().Format("2006-01-02 15:04:05")
@@ -167,7 +167,7 @@ func (sl *ScopedLogger) Verbose(format string, args ...interface{}) {
 		}
 		// Include the prefix in the message
 		if sl.prefix != "" {
-			message = fmt.Sprintf("%s %s", sl.prefix, message)
+			message = fmt.Sprintf("[%s] %s", sl.prefix, message)
 		}
 		if GetLogger().showTimestamps {
 			timestamp := time.Now().Format("2006-01-02 15:04:05")
@@ -189,7 +189,7 @@ func (sl *ScopedLogger) Info(format string, args ...interface{}) {
 		}
 		// Include the prefix in the message
 		if sl.prefix != "" {
-			message = fmt.Sprintf("%s %s", sl.prefix, message)
+			message = fmt.Sprintf("[%s] %s", sl.prefix, message)
 		}
 		if GetLogger().showTimestamps {
 			timestamp := time.Now().Format("2006-01-02 15:04:05")
@@ -211,7 +211,7 @@ func (sl *ScopedLogger) Warn(format string, args ...interface{}) {
 		}
 		// Include the prefix in the message
 		if sl.prefix != "" {
-			message = fmt.Sprintf("%s %s", sl.prefix, message)
+			message = fmt.Sprintf("[%s] %s", sl.prefix, message)
 		}
 		if GetLogger().showTimestamps {
 			timestamp := time.Now().Format("2006-01-02 15:04:05")
@@ -233,7 +233,7 @@ func (sl *ScopedLogger) Error(format string, args ...interface{}) {
 		}
 		// Include the prefix in the message
 		if sl.prefix != "" {
-			message = fmt.Sprintf("%s %s", sl.prefix, message)
+			message = fmt.Sprintf("[%s] %s", sl.prefix, message)
 		}
 		if GetLogger().showTimestamps {
 			timestamp := time.Now().Format("2006-01-02 15:04:05")
