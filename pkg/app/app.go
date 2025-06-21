@@ -1,13 +1,10 @@
+// SPDX-FileCopyrightText: © 2025 Nfrastack <code@nfrastack.com>
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 package app
 
 import (
-	"context"
-	"fmt"
-	"os"
-	"runtime"
-	"strings"
-
-	"github.com/zerotier/go-zerotier-one/service"
 	"zt-dns-companion/pkg/cli"
 	"zt-dns-companion/pkg/client"
 	"zt-dns-companion/pkg/config"
@@ -16,6 +13,15 @@ import (
 	"zt-dns-companion/pkg/modes"
 	appservice "zt-dns-companion/pkg/service"
 	"zt-dns-companion/pkg/utils"
+
+
+	"context"
+	"fmt"
+	"os"
+	"runtime"
+	"strings"
+
+	"github.com/zerotier/go-zerotier-one/service"
 )
 
 var Version = "dev"
