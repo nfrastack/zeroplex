@@ -9,7 +9,7 @@ BUILD_FLAGS := -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)
 all: build
 
 build:
-	$(GO) build -ldflags "$(BUILD_FLAGS)" -o $(BINARY_NAME) $(BUILD_DIR)
+	$(GO) build -mod=mod -ldflags "$(BUILD_FLAGS)" -o $(BINARY_NAME) $(BUILD_DIR)
 
 build-release:
 	$(GO) build -ldflags "$(LDFLAGS) $(BUILD_FLAGS)" -o $(BINARY_NAME) $(BUILD_DIR)
