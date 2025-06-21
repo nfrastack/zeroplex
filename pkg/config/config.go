@@ -7,9 +7,11 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/pelletier/go-toml"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -18,25 +20,27 @@ var (
 )
 
 type Config struct {
-	Default  Profile            `toml:"default"`
-	Profiles map[string]Profile `toml:"profiles"`
+	Default  Profile            `toml:"default" yaml:"default"`
+	Profiles map[string]Profile `toml:"profiles" yaml:"profiles"`
 }
 
 type Profile struct {
-	Mode              string   `toml:"mode"`
-	LogLevel          string   `toml:"log_level"`
-	Host              string   `toml:"host"`
-	Port              int      `toml:"port"`
-	DNSOverTLS        bool     `toml:"dns_over_tls"`
-	AutoRestart       bool     `toml:"auto_restart"`
-	AddReverseDomains bool     `toml:"add_reverse_domains"`
-	LogTimestamps     bool     `toml:"log_timestamps"`
-	MulticastDNS      bool     `toml:"multicast_dns"`
-	Reconcile         bool     `toml:"reconcile"`
-	FilterType        string   `toml:"filter_type"`    // "interface", "network", "network_id", or "none"
-	FilterInclude     []string `toml:"filter_include"` // Items to include, depending on FilterType
-	FilterExclude     []string `toml:"filter_exclude"` // Items to exclude, depending on FilterType
-	TokenFile         string   `toml:"token_file"`
+	Mode              string   `toml:"mode" yaml:"mode"`
+	LogLevel          string   `toml:"log_level" yaml:"log_level"`
+	Host              string   `toml:"host" yaml:"host"`
+	Port              int      `toml:"port" yaml:"port"`
+	DNSOverTLS        bool     `toml:"dns_over_tls" yaml:"dns_over_tls"`
+	AutoRestart       bool     `toml:"auto_restart" yaml:"auto_restart"`
+	AddReverseDomains bool     `toml:"add_reverse_domains" yaml:"add_reverse_domains"`
+	LogTimestamps     bool     `toml:"log_timestamps" yaml:"log_timestamps"`
+	MulticastDNS      bool     `toml:"multicast_dns" yaml:"multicast_dns"`
+	Reconcile         bool     `toml:"reconcile" yaml:"reconcile"`
+	FilterType        string   `toml:"filter_type" yaml:"filter_type"`       // "interface", "network", "network_id", or "none"
+	FilterInclude     []string `toml:"filter_include" yaml:"filter_include"` // Items to include, depending on FilterType
+	FilterExclude     []string `toml:"filter_exclude" yaml:"filter_exclude"` // Items to exclude, depending on FilterType
+	TokenFile         string   `toml:"token_file" yaml:"token_file"`
+	DaemonMode        bool     `toml:"daemon_mode" yaml:"daemon_mode"`         // Enable daemon mode
+	DaemonInterval    string   `toml:"daemon_interval" yaml:"daemon_interval"` // Interval for daemon execution (e.g., "1m", "5m", "1h")
 }
 
 func DefaultConfig() Config {
@@ -56,6 +60,8 @@ func DefaultConfig() Config {
 			FilterInclude:     []string{},
 			FilterExclude:     []string{},
 			TokenFile:         "/var/lib/zerotier-one/authtoken.secret",
+			DaemonMode:        false,
+			DaemonInterval:    "1m", // Default to 1 minute
 		},
 		Profiles: make(map[string]Profile),
 	}
@@ -69,9 +75,24 @@ func LoadConfig(filePath string) (Config, error) {
 	defer file.Close()
 
 	var config Config
-	decoder := toml.NewDecoder(file)
-	if err := decoder.Decode(&config); err != nil {
-		return Config{}, err
+	
+	// Auto-detect format based on file extension
+	ext := strings.ToLower(filepath.Ext(filePath))
+	switch ext {
+	case ".yaml", ".yml":
+		// YAML format
+		decoder := yaml.NewDecoder(file)
+		if err := decoder.Decode(&config); err != nil {
+			return Config{}, fmt.Errorf("failed to parse YAML config: %w", err)
+		}
+	case ".toml", ".conf", "":
+		// TOML format (default for .conf files and files without extension)
+		decoder := toml.NewDecoder(file)
+		if err := decoder.Decode(&config); err != nil {
+			return Config{}, fmt.Errorf("failed to parse TOML config: %w", err)
+		}
+	default:
+		return Config{}, fmt.Errorf("unsupported config file format: %s (supported: .yaml, .yml, .toml, .conf)", ext)
 	}
 
 	return config, nil
@@ -190,9 +211,25 @@ func SaveConfig(filePath string, config Config) error {
 	}
 	defer file.Close()
 
-	encoder := toml.NewEncoder(file)
-	if err := encoder.Encode(config); err != nil {
-		return err
+	// Auto-detect format based on file extension
+	ext := strings.ToLower(filepath.Ext(filePath))
+	switch ext {
+	case ".yaml", ".yml":
+		// YAML format
+		encoder := yaml.NewEncoder(file)
+		defer encoder.Close()
+		encoder.SetIndent(2) // Set indent for better readability
+		if err := encoder.Encode(config); err != nil {
+			return fmt.Errorf("failed to encode YAML config: %w", err)
+		}
+	case ".toml", ".conf", "":
+		// TOML format (default)
+		encoder := toml.NewEncoder(file)
+		if err := encoder.Encode(config); err != nil {
+			return fmt.Errorf("failed to encode TOML config: %w", err)
+		}
+	default:
+		return fmt.Errorf("unsupported config file format: %s (supported: .yaml, .yml, .toml, .conf)", ext)
 	}
 
 	return nil
