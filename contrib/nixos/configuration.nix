@@ -18,11 +18,6 @@
     logLevel = "info";                          # Logging level: "info" or "debug"
     logTimestamps = false;                      # Add timestamps to log entries
 
-    # Filtering - only one filter type can be active at a time
-    filterType = "network";                     # Options: "interface", "network", "network_id", "none"
-    filterInclude = ["network1", "network2"];   # Items to include (empty means "all")
-    filterExclude = [];                         # Items to exclude (empty means "none")
-
     # Select a specific profile to use (must match a profile name defined below)
     profile = "nfrastack";                      # Use this profile when running the service
 
@@ -36,41 +31,66 @@
     reconcile = true;                           # Remove left networks from systemd-networkd config
     timerInterval = "5m";                       # How often to run the service
 
-    # Example profiles for different use cases
-    profiles =nfrastack   # nfrastack profile with network name-based filtering
+    # Example profiles using Herald-style advanced filtering
+    profiles = {
+      # nfrastack profile with network name-based filtering
       nfrastack = {
-        filterType = "network";
-        filterInclude = ["network1", "network2"];
         dnsOverTLS = true;
         logLevel = "debug";
+        filters = [
+          {
+            type = "network";
+            conditions = [
+              { value = "network1"; logic = "or"; }
+              { value = "network2"; logic = "or"; }
+            ];
+          }
+        ];
       };
 
       # Home profile with interface-based filtering
       home = {
-        filterType = "interface";
-        filterInclude = ["ztabcd1234"];             # Include only this specific interface
         multicastDNS = true;                        # Enable mDNS for home network
+        filters = [
+          {
+            type = "interface";
+            conditions = [
+              { value = "ztabcd1234"; }             # Include only this specific interface
+            ];
+          }
+        ];
       };
 
       # Network ID-based filtering example
       networkIDs = {
-        filterType = "network_id";
-        filterInclude = ["a09acf0233e5c609"];       # Include by ZeroTier network ID
         autoRestart = false;                        # Don't auto-restart services
+        filters = [
+          {
+            type = "network_id";
+            conditions = [
+              { value = "a09acf0233e5c609"; }       # Include by ZeroTier network ID
+            ];
+          }
+        ];
       };
 
-      # Example using special filter values
+      # Example including all networks (no filters)
       allNetworks = {
-        filterType = "network";
-        filterInclude = ["any"];                    # Special value to include all networks
-        filterExclude = ["none"];                   # Special value to exclude nothing
+        # No filters array means process all networks
       };
 
       # Example excluding specific networks
       excludeSpecific = {
-        filterType = "network";
-        filterInclude = [];                         # Empty means include all
-        filterExclude = ["network3", "network4"];   # Exclude these networks
+        filters = [
+          {
+            type = "network";
+            negate = true;                          # Exclude instead of include
+            conditions = [
+              { value = "network3"; logic = "or"; }
+              { value = "network4"; logic = "or"; }
+            ];
+          }
+        ];
       } ;
     };
   };
