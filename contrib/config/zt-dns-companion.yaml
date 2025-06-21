@@ -1,0 +1,148 @@
+# ZT DNS Companion Configuration (YAML format)
+# This is a sample configuration showing the cleaner YAML syntax
+
+default:
+  mode: "auto"
+  log_level: "info"
+  host: "http://localhost"
+  port: 9993
+  dns_over_tls: false
+  auto_restart: true
+  add_reverse_domains: false
+  log_timestamps: false
+  multicast_dns: false
+  reconcile: true
+  token_file: "/var/lib/zerotier-one/authtoken.secret"
+  daemon_mode: true  # Default to daemon mode
+  daemon_interval: "1m"
+
+profiles:
+  # Development profile with debug logging and daemon mode
+  development:
+    log_level: "debug"
+    log_timestamps: true
+    daemon_mode: true
+    daemon_interval: "30s"
+    filters:
+      - type: "interface"
+        conditions:
+          - value: "zt12345678"
+            logic: "or"
+          - value: "zt87654321"
+            logic: "or"
+
+  # Production profile with specific networks
+  production:
+    mode: "networkd"
+    log_level: "info"
+    auto_restart: true
+    dns_over_tls: true
+    daemon_mode: true
+    daemon_interval: "5m"
+    filters:
+      - type: "network"
+        conditions:
+          - value: "prod_network"
+            logic: "or"
+          - value: "mgmt_network"
+            logic: "or"
+      - type: "network"
+        operation: "AND"
+        negate: true
+        conditions:
+          - value: "test_network"
+
+  # Resolved mode for desktop systems
+  desktop:
+    mode: "resolved"
+    log_level: "info"
+    add_reverse_domains: true
+    filters:
+      - type: "network_id"
+        conditions:
+          - value: "a1b2c3d4e5f6g7h8"
+            logic: "or"
+          - value: "h8g7f6e5d4c3b2a1"
+            logic: "or"
+
+  # Simple daemon mode
+  daemon_simple:
+    daemon_mode: true
+    daemon_interval: "2m"
+    log_level: "info"
+
+  # Advanced Herald-style filtering examples
+  advanced_filtering:
+    mode: "networkd"
+    log_level: "debug"
+    # Use Herald-style advanced filtering instead of simple filter_type
+    filters:
+      # Filter 1: Include only online networks with specific names
+      - type: "name"
+        operation: "AND"
+        conditions:
+          - value: "prod*"
+            logic: "or"
+          - value: "mgmt*"
+            logic: "or"
+      # Filter 2: AND with online status check
+      - type: "online"
+        operation: "AND"
+        conditions:
+          - value: "true"
+      # Filter 3: Exclude test networks
+      - type: "name"
+        operation: "AND"
+        negate: true
+        conditions:
+          - value: "*test*"
+
+  # Network filtering with address requirements
+  address_filtering:
+    mode: "resolved"
+    log_level: "info"
+    filters:
+      # Only networks with assigned addresses
+      - type: "assigned"
+        conditions:
+          - value: "true"
+      # AND specific address ranges
+      - type: "address"
+        operation: "AND"
+        conditions:
+          - value: "10.*"
+            logic: "or"
+          - value: "192.168.*"
+            logic: "or"
+
+  # Interface-based advanced filtering
+  interface_advanced:
+    mode: "networkd"
+    filters:
+      # Include specific interfaces
+      - type: "interface"
+        conditions:
+          - value: "zt*"
+      # AND exclude specific ones
+      - type: "interface"
+        operation: "AND"
+        negate: true
+        conditions:
+          - value: "*test*"
+
+  # Route-based filtering
+  route_filtering:
+    mode: "networkd"
+    filters:
+      # Networks with specific routes
+      - type: "route"
+        conditions:
+          - value: "0.0.0.0/0"
+            logic: "or"
+          - value: "10.0.0.0/8"
+            logic: "or"
+
+  # One-shot mode for manual execution
+  oneshot:
+    daemon_mode: false  # Explicitly disable daemon mode
+    log_level: "info"
