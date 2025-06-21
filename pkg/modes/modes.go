@@ -1,6 +1,14 @@
+// SPDX-FileCopyrightText: © 2025 Nfrastack <code@nfrastack.com>
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 package modes
 
 import (
+	"zt-dns-companion/pkg/dns"
+	"zt-dns-companion/pkg/logger"
+	"zt-dns-companion/pkg/utils"
+
 	"bytes"
 	"fmt"
 	"html/template"
@@ -12,9 +20,6 @@ import (
 	"strings"
 
 	"github.com/zerotier/go-zerotier-one/service"
-	"zt-dns-companion/pkg/dns"
-	"zt-dns-companion/pkg/logger"
-	"zt-dns-companion/pkg/utils"
 )
 
 type templateScaffold struct {

@@ -1,14 +1,18 @@
+// SPDX-FileCopyrightText: © 2025 Nfrastack <code@nfrastack.com>
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 package dns
 
 import (
+	"zt-dns-companion/pkg/logger"
+	"zt-dns-companion/pkg/utils"
+
 	"fmt"
 	"math"
 	"net"
 	"os"
 	"strings"
-
-	"zt-dns-companion/pkg/logger"
-	"zt-dns-companion/pkg/utils"
 )
 
 func CalculateReverseDomains(assignedAddresses *[]string) []string {

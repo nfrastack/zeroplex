@@ -1,11 +1,15 @@
+// SPDX-FileCopyrightText: © 2025 Nfrastack <code@nfrastack.com>
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 package service
 
 import (
-	"strings"
-
 	"zt-dns-companion/pkg/config"
 	"zt-dns-companion/pkg/logger"
 	"zt-dns-companion/pkg/utils"
+
+	"strings"
 )
 
 // DetectMode automatically detects which systemd service is running

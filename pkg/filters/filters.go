@@ -1,12 +1,17 @@
+// SPDX-FileCopyrightText: © 2025 Nfrastack <code@nfrastack.com>
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 package filters
 
 import (
-	"strings"
-
-	"github.com/zerotier/go-zerotier-one/service"
 	"zt-dns-companion/pkg/config"
 	"zt-dns-companion/pkg/logger"
 	"zt-dns-companion/pkg/utils"
+
+	"strings"
+
+	"github.com/zerotier/go-zerotier-one/service"
 )
 
 func ApplyUnifiedFilters(networks *service.GetNetworksResponse, cfg config.Profile) {

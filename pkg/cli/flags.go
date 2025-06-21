@@ -1,13 +1,17 @@
+// SPDX-FileCopyrightText: © 2025 Nfrastack <code@nfrastack.com>
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 package cli
 
 import (
+	"zt-dns-companion/pkg/config"
+	"zt-dns-companion/pkg/logger"
+
 	"flag"
 	"fmt"
 	"os"
 	"strings"
-
-	"zt-dns-companion/pkg/config"
-	"zt-dns-companion/pkg/logger"
 )
 
 // Flags represents all command line flags
