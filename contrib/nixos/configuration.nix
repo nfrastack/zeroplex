@@ -31,7 +31,7 @@
     reconcile = true;                           # Remove left networks from systemd-networkd config
     timerInterval = "5m";                       # How often to run the service
 
-    # Example profiles using Herald-style advanced filtering
+    # Example profiles using advanced filtering
     profiles = {
       # nfrastack profile with network name-based filtering
       nfrastack = {

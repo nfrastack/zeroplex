@@ -1,5 +1,4 @@
-# ZT DNS Companion Configuration (YAML format)
-# This is a sample configuration showing the cleaner YAML syntax
+# ZT DNS Companion Configuration
 
 default:
   mode: "auto"
@@ -71,11 +70,10 @@ profiles:
     daemon_interval: "2m"
     log_level: "info"
 
-  # Advanced Herald-style filtering examples
+  # Advanced filtering examples
   advanced_filtering:
     mode: "networkd"
     log_level: "debug"
-    # Use Herald-style advanced filtering instead of simple filter_type
     filters:
       # Filter 1: Include only online networks with specific names
       - type: "name"
