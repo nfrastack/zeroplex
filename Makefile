@@ -1,14 +1,15 @@
 BINARY_NAME := zt-dns-companion
 BUILD_DIR := ./cmd/zt-dns-companion
 GO := go
-LDFLAGS := "-s -w"
-VERSION := $(shell git describe --tags --exact-match 2>/dev/null || git describe --always --dirty || echo "dev")
-BUILD_FLAGS := "-X main.Version=$(VERSION)"
+LDFLAGS := -s -w
+VERSION := $(shell [ -n "$$ZTDNSCOMPANION_VERSION" ] && echo "$$ZTDNSCOMPANION_VERSION" || (git describe --tags --exact-match 2>/dev/null || git describe --always --dirty|| echo "dev"))
+BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+BUILD_FLAGS := -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)
 
 all: build
 
 build:
-	$(GO) build -ldflags "-X main.Version=$(VERSION)" -o $(BINARY_NAME) $(BUILD_DIR)
+	$(GO) build -ldflags "$(BUILD_FLAGS)" -o $(BINARY_NAME) $(BUILD_DIR)
 
 build-release:
 	$(GO) build -ldflags "$(LDFLAGS) $(BUILD_FLAGS)" -o $(BINARY_NAME) $(BUILD_DIR)
@@ -21,7 +22,8 @@ clean:
 	rm -f $(BINARY_NAME) $(BINARY_NAME)_x86_64 $(BINARY_NAME)_aarch64
 
 install:
-	$(GO) install $(BUILD_DIR)
+	mkdir -p /usr/local/bin
+	cp $(BINARY_NAME) /usr/local/bin/$(BINARY_NAME)
 
 release: clean build-all
 	@echo "Binaries built with version: $(VERSION) and ready for release: $(BINARY_NAME)_x86_64, $(BINARY_NAME)_aarch64"
