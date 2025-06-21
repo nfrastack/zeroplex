@@ -42,7 +42,7 @@
               "-X main.Version=${version}"
             ];
 
-            vendorHash = "sha256-uqrJspDAvXrSq5E5LM5rbyvd8Jtp7Mr737B59FZgovQ=";
+            vendorHash = "sha256-nPpIyHWWigOA1ts6mlN58KDuzXp2pHZglupuFN9+PDQ=";
           };
         });
 
@@ -94,37 +94,30 @@
 
             configFile = lib.mkOption {
               type = lib.types.str;
-              default = "/etc/zt-dns-companion.conf";
-              description = "Path to the configuration file for ZT DNS Companion.";
+              default = "/etc/zt-dns-companion.yaml";
+              description = "Path to the YAML configuration file for ZT DNS Companion.";
             };
 
             profiles = lib.mkOption {
               type = with lib.types; attrsOf (attrsOf anything);
               default = {};
-              example = {
-                example1 = {
-                  filterType = "interface";
-                  filterInclude = [ "zt12345678" "zt87654321" ];
-                  autoRestart = false;
-                };
-                example2 = {
-                  filterType = "network";
-                  filterInclude = [ "ztnetwork1" "ztnetwork2" ];
-                  mode = "resolved";
-                  dnsOverTLS = true;
-                };
-              };
               description = ''
-                Additional profiles for the zt-dns-companion configuration.
+                Additional profiles for the zt-dns-companion configuration using Herald-style advanced filtering.
                 Each profile is an attribute set where the key is the profile name
                 and the value is an attribute set of options for that profile.
 
                 Profiles inherit values from the default profile unless explicitly overridden.
 
-                Filtering options:
-                - filterType: Type of filter ("interface", "network", "network_id", or "none")
-                - filterInclude: List of items to include based on filter type (empty or "any"/"all"/"ignore" means include all)
-                - filterExclude: List of items to exclude based on filter type (empty or "none"/"ignore" means exclude nothing)
+                Herald-style filtering options:
+                - filters: Array of filter objects with Herald-style syntax
+                  - type: Filter type ("name", "interface", "network", "network_id", "online", "assigned", "address", "route")
+                  - operation: How filters combine ("AND", "OR") - defaults to "AND"
+                  - negate: Whether to invert the filter result (boolean)
+                  - conditions: Array of condition objects
+                    - value: Pattern to match (supports wildcards like "prod*")
+                    - logic: How conditions combine within a filter ("and", "or") - defaults to "and"
+
+                See contrib/nixos/configuration.nix for comprehensive examples.
               '';
             };
 
@@ -167,58 +160,16 @@
               description = "Path to the ZeroTier authentication token file.";
             };
 
-            filterType = lib.mkOption {
-              type = lib.types.enum [ "interface" "network" "network_id" "none" ];
-              default = "none";
-              description = "Type of filter to apply (interface, network, network_id, or none).";
-            };
-
-            filterInclude = lib.mkOption {
-              type = lib.types.listOf lib.types.str;
-              default = [];
-              description = ''
-                List of items to include based on filter-type.
-                Empty list or values like "any", "all", or "ignore" mean include all.
-              '';
-            };
-
-            filterExclude = lib.mkOption {
-              type = lib.types.listOf lib.types.str;
-              default = [];
-              description = ''
-                List of items to exclude based on filter-type.
-                Empty list or values like "none", or "ignore" mean exclude nothing.
-              '';
-            };
-
-            addReverseDomains = lib.mkOption {
-              type = lib.types.bool;
-              default = false;
-              description = "Add ip6.arpa and in-addr.arpa search domains.";
-            };
-
-            autoRestart = lib.mkOption {
+            daemonMode = lib.mkOption {
               type = lib.types.bool;
               default = true;
-              description = "Automatically restart systemd-networkd when things change.";
+              description = "Run in daemon mode with periodic execution.";
             };
 
-            dnsOverTLS = lib.mkOption {
-              type = lib.types.bool;
-              default = false;
-              description = "Automatically prefer DNS-over-TLS. Requires ZeroNSd v0.4 or better.";
-            };
-
-            multicastDNS = lib.mkOption {
-              type = lib.types.bool;
-              default = false;
-              description = "Enable mDNS resolution on the zerotier interface.";
-            };
-
-            reconcile = lib.mkOption {
-              type = lib.types.bool;
-              default = true;
-              description = "Automatically remove left networks from systemd-networkd configuration.";
+            daemonInterval = lib.mkOption {
+              type = lib.types.str;
+              default = "1m";
+              description = "Interval for daemon execution (e.g., 1m, 5m, 1h, 1d).";
             };
 
           };
@@ -234,15 +185,9 @@
               cfg.logLevel != "info" ||
               cfg.host != "http://localhost" ||
               cfg.port != 9993 ||
-              cfg.dnsOverTLS != false ||
-              cfg.autoRestart != true ||
-              cfg.addReverseDomains != false ||
-              cfg.multicastDNS != false ||
-              cfg.reconcile != true ||
-              cfg.filterType != "none" ||
-              cfg.filterInclude != [] ||
-              cfg.filterExclude != [] ||
               cfg.tokenFile != "/var/lib/zerotier-one/authtoken.secret" ||
+              cfg.daemonMode != true ||
+              cfg.daemonInterval != "1m" ||
               (cfg.profiles != {})
             ) {
               zt-dns-companion-config = {
@@ -251,36 +196,50 @@
                     mkdir -p "${getDir cfg.configFile}"
                   fi
                   cat > ${cfg.configFile} << 'EOC'
-                  # Default profile
-                  [default]
-                  mode = "${cfg.mode}"
-                  log_level = "${cfg.logLevel}"
-                  host = "${cfg.host}"
-                  port = ${toString cfg.port}
-                  dns_over_tls = ${lib.boolToString cfg.dnsOverTLS}
-                  auto_restart = ${lib.boolToString cfg.autoRestart}
-                  add_reverse_domains = ${lib.boolToString cfg.addReverseDomains}
-                  multicast_dns = ${lib.boolToString cfg.multicastDNS}
-                  reconcile = ${lib.boolToString cfg.reconcile}
-                  filter_type = "${cfg.filterType}"
-                  filter_include = [${lib.strings.concatMapStringsSep ", " (s: ''"${s}"'') cfg.filterInclude}]
-                  filter_exclude = [${lib.strings.concatMapStringsSep ", " (s: ''"${s}"'') cfg.filterExclude}]
-                  token_file = "${cfg.tokenFile}"
+                  # ZT DNS Companion Configuration (Generated by NixOS)
+                  # This configuration uses Herald-style advanced filtering
 
-                  ${lib.concatStringsSep "\n\n" (lib.mapAttrsToList (name: profile: ''
-                    # Profile: ${name}
-                    [profiles.${name}]
-                    ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value:
-                      if builtins.isBool value then
-                        "${lib.replaceStrings ["_"] ["-"] key} = ${lib.boolToString value}"
-                      else if builtins.isString value then
-                        "${lib.replaceStrings ["_"] ["-"] key} = \"${value}\""
-                      else if builtins.isList value then
-                        "${lib.replaceStrings ["_"] ["-"] key} = [${lib.strings.concatMapStringsSep ", " (s: ''"${s}"'') value}]"
-                      else
-                        "${lib.replaceStrings ["_"] ["-"] key} = ${toString value}"
-                    ) profile)}
+                  default:
+                    mode: "${cfg.mode}"
+                    log_level: "${cfg.logLevel}"
+                    host: "${cfg.host}"
+                    port: ${toString cfg.port}
+                    dns_over_tls: ${lib.boolToString cfg.dnsOverTLS}
+                    auto_restart: ${lib.boolToString cfg.autoRestart}
+                    add_reverse_domains: ${lib.boolToString cfg.addReverseDomains}
+                    log_timestamps: false
+                    multicast_dns: ${lib.boolToString cfg.multicastDNS}
+                    reconcile: ${lib.boolToString cfg.reconcile}
+                    token_file: "${cfg.tokenFile}"
+                    daemon_mode: ${lib.boolToString cfg.daemonMode}
+                    daemon_interval: "${cfg.daemonInterval}"
+
+                  ${lib.optionalString (cfg.profiles != {}) ''
+                  profiles:
+                  ${lib.concatStringsSep "\n" (lib.mapAttrsToList (name: profile: ''
+                    ${name}:
+                  ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value:
+                    let
+                      yamlKey = lib.replaceStrings ["_"] ["_"] key;  # Keep underscores for YAML
+                      yamlValue =
+                        if builtins.isBool value then lib.boolToString value
+                        else if builtins.isString value then ''"${value}"''
+                        else if builtins.isList value then
+                          if builtins.length value == 0 then "[]"
+                          else "\n${lib.concatMapStringsSep "\n" (item:
+                            if builtins.isAttrs item then
+                              "        - ${lib.concatStringsSep "\n          " (lib.mapAttrsToList (k: v:
+                                "${k}: ${if builtins.isString v then ''"${v}"'' else toString v}"
+                              ) item)}"
+                            else
+                              ''        - "${item}"''
+                          ) value}"
+                        else toString value;
+                    in
+                      "      ${yamlKey}: ${yamlValue}"
+                  ) profile)}
                   '') cfg.profiles)}
+                  ''}
                   EOC
                   chmod 0600 ${cfg.configFile}
                 '';
@@ -291,6 +250,12 @@
             systemd.services.zt-dns-companion = lib.mkIf cfg.service.enable {
               description = "ZeroTier DNS Companion";
               wantedBy = [ "multi-user.target" ];
+              restartTriggers = [
+                cfg.package
+                config.environment.etc."${lib.removePrefix "/etc/" cfg.configFile}".source
+                # Force restart on any source change by using derivation path
+                "${cfg.package.outPath}"
+              ];
               serviceConfig = {
                 # Only pass the config-file argument if we've actually written a config file
                 ExecStart =
@@ -300,19 +265,13 @@
                       cfg.logLevel != "info" ||
                       cfg.host != "http://localhost" ||
                       cfg.port != 9993 ||
-                      cfg.dnsOverTLS != false ||
-                      cfg.autoRestart != true ||
-                      cfg.addReverseDomains != false ||
-                      cfg.multicastDNS != false ||
-                      cfg.reconcile != true ||
-                      cfg.filterType != "none" ||
-                      cfg.filterInclude != [] ||
-                      cfg.filterExclude != [] ||
                       cfg.tokenFile != "/var/lib/zerotier-one/authtoken.secret" ||
+                      cfg.daemonMode != true ||
+                      cfg.daemonInterval != "1m" ||
                       (cfg.profiles != {});
 
-                    configFileArg = if needsConfigFile then "-config-file ${cfg.configFile}" else "";
-                    profileArg = if cfg.profile != "" then "-profile ${cfg.profile}" else "";
+                    configFileArg = if needsConfigFile then "--config-file ${cfg.configFile}" else "";
+                    profileArg = if cfg.profile != "" then "--profile ${cfg.profile}" else "";
 
                     args = lib.strings.concatStringsSep " " (lib.lists.filter (s: s != "") [
                       "${cfg.package}/bin/zt-dns-companion"
@@ -323,6 +282,11 @@
                 Type = "oneshot";
                 User = "root";
                 Group = "root";
+                RestartSec = "10s";
+                Restart = "always";
+                StandardOutput = "journal";
+                StandardError = "journal";
+                SyslogIdentifier = "zt-dns-companion";
               };
             };
 
