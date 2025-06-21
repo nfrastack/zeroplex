@@ -1,3 +1,8 @@
+## 1.1.0-beta 2025-06-20 <dave at tiredofit dot ca>
+
+   ### Added
+   ### Changed
+
 ## 1.0.0 2025-05-08 <dave at tiredofit dot ca>
 
 Inaugral release of the ZT DNS Companion!
