@@ -210,7 +210,13 @@
 
             interfaceWatch = lib.mkOption {
               type = lib.types.attrs;
-              default = {};
+              default = {
+                mode = "event";
+                retry = {
+                  count = 5;
+                  delay = "10s";
+                };
+              };
               description = "Interface watch configuration (mode, retry).";
             };
 
@@ -219,75 +225,39 @@
           config = lib.mkIf cfg.enable {
             environment.systemPackages = [ cfg.package ];
 
-            # Only write configuration if the user has explicitly set options beyond defaults
-            # or if profiles are defined
-            system.activationScripts = lib.mkIf (
-              # Only create the file if user set custom options or has profiles
-              cfg.mode != "auto" ||
-              cfg.logLevel != "verbose" ||
-              cfg.host != "http://localhost" ||
-              cfg.port != 9993 ||
-              cfg.tokenFile != "/var/lib/zerotier-one/authtoken.secret" ||
-              cfg.daemonMode != true ||
-              cfg.pollInterval != "1m" ||
-              (cfg.profiles != {})
-            ) {
-              zt-dns-companion-config = {
-                text = ''
-                  if [ ! -e "${getDir cfg.configFile}" ]; then
-                    mkdir -p "${getDir cfg.configFile}"
-                  fi
-                  cat > ${cfg.configFile} << 'EOC'
-                  # ZT DNS Companion Configuration
+            # Always write configuration file when service is enabled
+            system.activationScripts.zt-dns-companion-config = {
+              text = ''
+                if [ ! -e "${getDir cfg.configFile}" ]; then
+                  mkdir -p "${getDir cfg.configFile}"
+                fi
+                cat > ${cfg.configFile} << 'EOC'
+# ZT DNS Companion Configuration
 
-                  default:
-                    mode: "${cfg.mode}"
-                    log_level: "${cfg.logLevel}"
-                    host: "${cfg.host}"
-                    port: ${toString cfg.port}
-                    dns_over_tls: ${lib.boolToString cfg.dnsOverTLS}
-                    auto_restart: ${lib.boolToString cfg.autoRestart}
-                    add_reverse_domains: ${lib.boolToString cfg.addReverseDomains}
-                    log_timestamps: false
-                    multicast_dns: ${lib.boolToString cfg.multicastDNS}
-                    reconcile: ${lib.boolToString cfg.reconcile}
-                    token_file: "${cfg.tokenFile}"
-                    daemon_mode: ${lib.boolToString cfg.daemonMode}
-                    poll_interval: "${cfg.pollInterval}"
-                    restore_on_exit: ${lib.boolToString cfg.restoreOnExit}
-                    ${lib.optionalString (cfg.interfaceWatch != {}) "interface_watch: ${lib.generators.toYAML {} cfg.interfaceWatch}"}
-
-                  ${lib.optionalString (cfg.profiles != {}) ''
-                  profiles:
-                  ${lib.concatStringsSep "\n" (lib.mapAttrsToList (name: profile: ''
-                    ${name}:
-                  ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value:
-                    let
-                      yamlKey = lib.replaceStrings ["_"] ["_"] key;  # Keep underscores for YAML
-                      yamlValue =
-                        if builtins.isBool value then lib.boolToString value
-                        else if builtins.isString value then ''"${value}"''
-                        else if builtins.isList value then
-                          if builtins.length value == 0 then "[]"
-                          else "\n${lib.concatMapStringsSep "\n" (item:
-                            if builtins.isAttrs item then
-                              "        - ${lib.concatStringsSep "\n          " (lib.mapAttrsToList (k: v:
-                                "${k}: ${if builtins.isString v then ''"${v}"'' else toString v}"
-                              ) item)}"
-                            else
-                              ''        - "${item}"''
-                          ) value}"
-                        else toString value;
-                    in
-                      "      ${yamlKey}: ${yamlValue}"
-                  ) profile)}
-                  '') cfg.profiles)}
-                  ''}
-                  EOC
-                  chmod 0600 ${cfg.configFile}
-                '';
-                deps = [];
-              };
+default:
+  mode: "${cfg.mode}"
+  log_level: "${cfg.logLevel}"
+  log_timestamps: ${if cfg.logTimestamps then "true" else "false"}
+  daemon_mode: ${if cfg.daemonMode then "true" else "false"}
+  poll_interval: "${cfg.pollInterval}"
+  interface_watch:
+    mode: "${cfg.interfaceWatch.mode}"
+    retry:
+      count: ${toString cfg.interfaceWatch.retry.count}
+      delay: "${cfg.interfaceWatch.retry.delay}"
+  host: "${cfg.host}"
+  port: ${toString cfg.port}
+  token_file: "${cfg.tokenFile}"
+  dns_over_tls: ${if cfg.dnsOverTLS then "true" else "false"}
+  auto_restart: ${if cfg.autoRestart then "true" else "false"}
+  add_reverse_domains: ${if cfg.addReverseDomains then "true" else "false"}
+  multicast_dns: ${if cfg.multicastDNS then "true" else "false"}
+  reconcile: ${if cfg.reconcile then "true" else "false"}
+  restore_on_exit: ${if cfg.restoreOnExit then "true" else "false"}
+EOC
+                chmod 0600 ${cfg.configFile}
+              '';
+              deps = [];
             };
 
             systemd.services.zt-dns-companion = lib.mkIf cfg.service.enable {
@@ -298,26 +268,16 @@
                 "${cfg.package.outPath}"
               ];
               serviceConfig = {
-                # Only pass the config-file argument if we've actually written a config file
                 ExecStart =
                   let
-                    needsConfigFile =
-                      cfg.mode != "auto" ||
-                      cfg.logLevel != "info" ||
-                      cfg.host != "http://localhost" ||
-                      cfg.port != 9993 ||
-                      cfg.tokenFile != "/var/lib/zerotier-one/authtoken.secret" ||
-                      cfg.daemonMode != true ||
-                      cfg.pollInterval != "1m" ||
-                      (cfg.profiles != {});
-
-                    configFileArg = if needsConfigFile then "--config-file ${cfg.configFile}" else "";
+                    configFileArg = "--config-file ${cfg.configFile}";
                     profileArg = if cfg.profile != "" then "--profile ${cfg.profile}" else "";
-
+                    logTimestampsArg = "--log-timestamps=false";
                     args = lib.strings.concatStringsSep " " (lib.lists.filter (s: s != "") [
                       "${cfg.package}/bin/zt-dns-companion"
                       configFileArg
                       profileArg
+                      logTimestampsArg
                     ]);
                   in args;
                 User = "root";
