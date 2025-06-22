@@ -57,5 +57,6 @@ Here are the available options for the NixOS module:
 * `network_id` (list of str): Alias for `network`. Default: `[]`.
 * `interface` (list of str): List of network interfaces to use. Default: `[]`.
 * `exclude` (list of str): List of networks or interfaces to exclude. Default: `[]`.
+* `restoreOnExit` (bool): Restore original DNS settings for all managed interfaces on exit. Default: `false`.
 
 This setup allows you to fully configure and manage the ZT DNS Companion service declaratively using NixOS.

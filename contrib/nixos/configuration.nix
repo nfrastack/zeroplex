@@ -30,6 +30,7 @@
     autoRestart = true;                         # Restart systemd-networkd when changes occur
     reconcile = true;                           # Remove left networks from systemd-networkd config
     timerInterval = "5m";                       # How often to run the service
+    restoreOnExit = false;                      # Restore DNS for all managed interfaces on exit
 
     # Example profiles using advanced filtering
     profiles = {
@@ -37,6 +38,7 @@
       nfrastack = {
         dnsOverTLS = true;
         logLevel = "debug";
+        restoreOnExit = true;                   # Example: enable DNS restore for this profile
         filters = [
           {
             type = "network";

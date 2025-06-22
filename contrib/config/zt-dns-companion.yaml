@@ -14,6 +14,12 @@ default:
   token_file: "/var/lib/zerotier-one/authtoken.secret"
   daemon_mode: true  # Default to daemon mode
   poll_interval: "1m"
+  interface_watch:
+    mode: "event"         # Options: event, poll, off
+    retry:
+      count: 3            # Number of retries after interface event
+      delay: "2s"         # Delay between retries (duration string)
+  restore_on_exit: false
 
 profiles:
   # Development profile with debug logging and daemon mode
@@ -22,6 +28,12 @@ profiles:
     log_timestamps: true
     daemon_mode: true
     poll_interval: "30s"
+    interface_watch:
+      mode: "event"
+      retry:
+        count: 3
+        delay: "2s"
+    restore_on_exit: false
     filters:
       - type: "interface"
         conditions:
@@ -38,6 +50,12 @@ profiles:
     dns_over_tls: true
     daemon_mode: true
     daemon_interval: "5m"
+    interface_watch:
+      mode: "poll"
+      retry:
+        count: 2
+        delay: "1s"
+    restore_on_exit: false
     filters:
       - type: "network"
         conditions:
@@ -56,6 +74,7 @@ profiles:
     mode: "resolved"
     log_level: "info"
     add_reverse_domains: true
+    restore_on_exit: false
     filters:
       - type: "network_id"
         conditions:
@@ -69,11 +88,13 @@ profiles:
     daemon_mode: true
     daemon_interval: "2m"
     log_level: "info"
+    restore_on_exit: false
 
   # Advanced filtering examples
   advanced_filtering:
     mode: "networkd"
     log_level: "debug"
+    restore_on_exit: false
     filters:
       # Filter 1: Include only online networks with specific names
       - type: "name"
@@ -99,6 +120,7 @@ profiles:
   address_filtering:
     mode: "resolved"
     log_level: "info"
+    restore_on_exit: false
     filters:
       # Only networks with assigned addresses
       - type: "assigned"
@@ -116,6 +138,7 @@ profiles:
   # Interface-based advanced filtering
   interface_advanced:
     mode: "networkd"
+    restore_on_exit: false
     filters:
       # Include specific interfaces
       - type: "interface"
@@ -131,6 +154,7 @@ profiles:
   # Route-based filtering
   route_filtering:
     mode: "networkd"
+    restore_on_exit: false
     filters:
       # Networks with specific routes
       - type: "route"
@@ -144,3 +168,4 @@ profiles:
   oneshot:
     daemon_mode: false  # Explicitly disable daemon mode
     log_level: "info"
+    restore_on_exit: false
