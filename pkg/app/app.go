@@ -11,8 +11,11 @@ import (
 	"zt-dns-companion/pkg/utils"
 	"flag"
 	"fmt"
+	"os"
 	"time"
 )
+
+var Version = "development"
 
 type App struct {
 	cfg    config.Config
@@ -39,7 +42,6 @@ func ValidateAndLoadConfig(configFile string) config.Config {
 }
 
 func showStartupBanner(logLevel string, showTimestamps bool, version string) {
-	// Always show banner, even under systemd
 	fmt.Println()
 	fmt.Println("             .o88o.                                 .                       oooo")
 	fmt.Println("             888 \"\"                                .o8                       888")
@@ -49,23 +51,43 @@ func showStartupBanner(logLevel string, showTimestamps bool, version string) {
 	fmt.Println(" 888   888   888     888     d8(  888  o.  )88b   888 . d8(  888  888   .o8  888 `88b.")
 	fmt.Println("o888o o888o o888o   d888b    `Y888\"\"8o 8\"\"888P'   \"888\" `Y888\"\"8o `Y8bod8P' o888o o888o")
 	fmt.Println()
-	if showTimestamps {
-		timestamp := time.Now().Format("2006-01-02 15:04:05")
-		fmt.Printf("%s Starting ZeroTier DNS Companion version: %s\n", timestamp, version)
-	} else {
-		fmt.Printf("Starting ZeroTier DNS Companion version: %s\n", version)
-	}
 }
 
 // Run starts the application
 func (a *App) Run() error {
 	cfg, dryRun, help, err := a.parseArgs()
 	if err != nil {
+		if err.Error() == "version requested" {
+			if cfg.Default.LogTimestamps {
+				timestamp := time.Now().Format("2006-01-02 15:04:05")
+				fmt.Printf("%s ZeroTier DNS Companion version: %s\n", timestamp, getVersionString())
+			} else {
+				fmt.Printf("ZeroTier DNS Companion version: %s\n", getVersionString())
+			}
+			return nil
+		}
 		return err
 	}
-	showStartupBanner(cfg.Default.LogLevel, cfg.Default.LogTimestamps, "development")
 	if help {
-		return fmt.Errorf("help requested")
+		printHelpWithVersion(cfg.Default.LogTimestamps)
+		return nil
+	}
+	showStartupBanner(cfg.Default.LogLevel, cfg.Default.LogTimestamps, "")
+	if os.Geteuid() != 0 {
+		if cfg.Default.LogTimestamps {
+			timestamp := time.Now().Format("2006-01-02 15:04:05")
+			fmt.Printf("%s ZeroTier DNS Companion version: %s\n", timestamp, getVersionString())
+		} else {
+			fmt.Printf("ZeroTier DNS Companion version: %s\n", getVersionString())
+		}
+		fmt.Fprintln(os.Stderr, "This application must be run as root. Exiting.")
+		os.Exit(1)
+	}
+	if cfg.Default.LogTimestamps {
+		timestamp := time.Now().Format("2006-01-02 15:04:05")
+		fmt.Printf("%s ZeroTier DNS Companion version: %s\n", timestamp, getVersionString())
+	} else {
+		fmt.Printf("ZeroTier DNS Companion version: %s\n", getVersionString())
 	}
 	// Perform mode auto-detection before creating the runner
 	if cfg.Default.Mode == "auto" {
@@ -88,21 +110,44 @@ func (a *App) Run() error {
 	return nil
 }
 
+func getVersionString() string {
+	return Version
+}
+
+func printHelpWithVersion(showTimestamps bool) {
+	if showTimestamps {
+		timestamp := time.Now().Format("2006-01-02 15:04:05")
+		fmt.Printf("%s ZeroTier DNS Companion version: %s\n", timestamp, getVersionString())
+	} else {
+		fmt.Printf("ZeroTier DNS Companion version: %s\n", getVersionString())
+	}
+	fmt.Println()
+	flag.PrintDefaults()
+}
+
+func printHelp() {
+	// Deprecated: replaced by printHelpWithVersion
+}
+
 // parseArgs parses command line arguments and loads configuration
 func (a *App) parseArgs() (config.Config, bool, bool, error) {
 	logger := log.NewScopedLogger("[app/args]", "info")
 	logger.Trace("Starting command line argument parsing")
 
-	// Define flags
+	// Define flags with aliases
 	help := flag.Bool("help", false, "Show help message and exit")
+	helpShort := flag.Bool("h", false, "Show help message and exit (alias)")
 	version := flag.Bool("version", false, "Show version and exit")
+	versionShort := flag.Bool("v", false, "Show version and exit (alias)")
 	configFile := flag.String("config-file", "/etc/zt-dns-companion.yaml", "Path to the configuration file")
+	configFileShort := flag.String("config", "", "Path to the configuration file (alias)")
+	configFileC := flag.String("c", "", "Path to the configuration file (alias)")
 	dryRun := flag.Bool("dry-run", false, "Enable dry-run mode. No changes will be made.")
 	mode := flag.String("mode", "", "Mode of operation (networkd, resolved, or auto).")
 	host := flag.String("host", "", "ZeroTier client host address.")
 	port := flag.Int("port", 0, "ZeroTier client port number.")
 	logLevel := flag.String("log-level", "", "Set the logging level (error, warn, info, verbose, debug, or trace).")
-	logTimestamps := flag.Bool("log-timestamps", false, "Enable timestamps in logs.")
+	logTimestamps := flag.Bool("log-timestamps", true, "Enable timestamps in logs. Default: true")
 	tokenFile := flag.String("token-file", "", "Path to the ZeroTier authentication token file.")
 	token := flag.String("token", "", "API token to use. Overrides token-file if provided.")
 
@@ -129,19 +174,27 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 	flag.Parse()
 	logger.Debug("Command line flags parsed successfully")
 
-	if *help {
+	// Help/version logic: allow these even as non-root
+	if *help || *helpShort {
 		logger.Trace("Help flag requested, returning early")
 		return config.Config{}, false, true, nil
 	}
-
-	if *version {
+	if *version || *versionShort {
 		logger.Trace("Version flag requested, returning early")
 		return config.Config{}, false, false, fmt.Errorf("version requested")
 	}
 
-	// Load configuration
-	logger.Verbose("Loading configuration from file: %s", *configFile)
-	cfg := ValidateAndLoadConfig(*configFile)
+	// Determine config file path from any alias
+	finalConfigFile := *configFile
+	if *configFileShort != "" {
+		finalConfigFile = *configFileShort
+	}
+	if *configFileC != "" {
+		finalConfigFile = *configFileC
+	}
+
+	logger.Verbose("Loading configuration from file: %s", finalConfigFile)
+	cfg := ValidateAndLoadConfig(finalConfigFile)
 	logger.Debug("Configuration loaded and validated successfully")
 
 	// Handle profile selection

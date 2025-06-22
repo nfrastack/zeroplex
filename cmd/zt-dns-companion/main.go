@@ -15,5 +15,6 @@ var (
 )
 
 func main() {
+	app.Version = Version
 	app.New().Run()
 }

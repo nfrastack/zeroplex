@@ -17,8 +17,13 @@ import (
 // Flags represents all command line flags
 type Flags struct {
 	Version           *bool
+	VersionShort      *bool
+	VersionLong       *bool
 	Help              *bool
+	HelpShort         *bool
 	ConfigFile        *string
+	ConfigFileShort   *string
+	ConfigFileC       *string
 	DryRun            *bool
 	Mode              *string
 	Host              *string
@@ -40,8 +45,13 @@ type Flags struct {
 func ParseFlags() (*Flags, map[string]bool) {
 	flags := &Flags{
 		Version:           flag.Bool("version", false, "Print the version and exit"),
+		VersionShort:      flag.Bool("v", false, "Print the version and exit (alias)"),
+		VersionLong:       flag.Bool("--version", false, "Print the version and exit (alias)"),
 		Help:              flag.Bool("help", false, "Show help message and exit"),
+		HelpShort:         flag.Bool("h", false, "Show help message and exit (alias)"),
 		ConfigFile:        flag.String("config-file", "/etc/zt-dns-companion.conf", "Path to the configuration file"),
+		ConfigFileShort:   flag.String("config", "", "Path to the configuration file (alias)"),
+		ConfigFileC:       flag.String("c", "", "Path to the configuration file (alias)"),
 		DryRun:            flag.Bool("dry-run", false, "Enable dry-run mode. No changes will be made."),
 		Mode:              flag.String("mode", "auto", "Mode of operation (networkd, resolved, or auto)."),
 		Host:              flag.String("host", "http://localhost", "ZeroTier client host address. Default: http://localhost"),
