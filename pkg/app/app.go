@@ -39,6 +39,7 @@ func ValidateAndLoadConfig(configFile string) config.Config {
 }
 
 func showStartupBanner(logLevel string, showTimestamps bool, version string) {
+	// Always show banner, even under systemd
 	fmt.Println()
 	fmt.Println("             .o88o.                                 .                       oooo")
 	fmt.Println("             888 \"\"                                .o8                       888")
@@ -48,12 +49,12 @@ func showStartupBanner(logLevel string, showTimestamps bool, version string) {
 	fmt.Println(" 888   888   888     888     d8(  888  o.  )88b   888 . d8(  888  888   .o8  888 `88b.")
 	fmt.Println("o888o o888o o888o   d888b    `Y888\"\"8o 8\"\"888P'   \"888\" `Y888\"\"8o `Y8bod8P' o888o o888o")
 	fmt.Println()
-    if showTimestamps {
-        timestamp := time.Now().Format("2006-01-02 15:04:05")
-        fmt.Printf("%s Starting ZeroTier DNS Companion version: %s\n", timestamp, version)
-    } else {
-        fmt.Printf("Starting ZeroTier DNS Companion version: %s\n", version)
-    }
+	if showTimestamps {
+		timestamp := time.Now().Format("2006-01-02 15:04:05")
+		fmt.Printf("%s Starting ZeroTier DNS Companion version: %s\n", timestamp, version)
+	} else {
+		fmt.Printf("Starting ZeroTier DNS Companion version: %s\n", version)
+	}
 }
 
 // Run starts the application
@@ -143,16 +144,24 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 	cfg := ValidateAndLoadConfig(*configFile)
 	logger.Debug("Configuration loaded and validated successfully")
 
-	// Track which flags were explicitly set
+	// Handle profile selection
+	if *selectedProfile != "" {
+		if profile, exists := cfg.Profiles[*selectedProfile]; exists {
+			logger.Debug("Applying selected profile: %s", *selectedProfile)
+			cfg.Default = mergeProfiles(cfg.Default, profile)
+		} else {
+			logger.Debug("Selected profile '%s' not found. Using default profile.", *selectedProfile)
+		}
+	}
+
+	// Apply explicit flags over config/defaults and merged profile (flags always win)
+	// --- BEGIN: Ensure flags are applied LAST, after all merging ---
 	explicitFlags := make(map[string]bool)
 	flag.Visit(func(f *flag.Flag) {
 		explicitFlags[f.Name] = true
 		logger.Trace("Explicit flag detected: %s = %s", f.Name, f.Value.String())
 	})
-
-	logger.Verbose("Found %d explicitly set command line flags", len(explicitFlags))
-
-	// Apply explicit flags over config/defaults
+	// Now apply all explicit flags (move this block after profile merging)
 	if explicitFlags["daemon"] {
 		logger.Trace("Applying explicit daemon flag: %t", *daemonMode)
 		cfg.Default.DaemonMode = *daemonMode
@@ -161,7 +170,6 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 		logger.Trace("Applying explicit poll-interval flag: %s", *pollInterval)
 		cfg.Default.PollInterval = *pollInterval
 	}
-	// Handle oneshot flag - if set, disable daemon mode
 	if explicitFlags["oneshot"] && *oneshot {
 		cfg.Default.DaemonMode = false
 		logger.Debug("Oneshot mode enabled - daemon mode disabled")
@@ -190,7 +198,6 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 		logger.Trace("Applying explicit token-file flag: %s", *tokenFile)
 		cfg.Default.TokenFile = *tokenFile
 	}
-	// Note: token flag is handled by client.LoadAPIToken function during execution
 	_ = token // Suppress unused variable warning
 	if explicitFlags["add-reverse-domains"] {
 		logger.Trace("Applying explicit add-reverse-domains flag: %t", *addReverseDomains)
@@ -212,16 +219,7 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 		logger.Trace("Applying explicit reconcile flag: %t", *reconcile)
 		cfg.Default.Reconcile = *reconcile
 	}
-
-	// Handle profile selection
-	if *selectedProfile != "" {
-		if profile, exists := cfg.Profiles[*selectedProfile]; exists {
-			logger.Debug("Applying selected profile: %s", *selectedProfile)
-			cfg.Default = mergeProfiles(cfg.Default, profile)
-		} else {
-			logger.Debug("Selected profile '%s' not found. Using default profile.", *selectedProfile)
-		}
-	}
+	// --- END: Ensure flags are applied LAST ---
 
 	// Validate daemon configuration
 	if cfg.Default.DaemonMode {
@@ -240,6 +238,9 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 	} else {
 		logger.Verbose("One-shot mode configured")
 	}
+
+	// After all config/profile merging and explicit flag application, update logger global state
+	log.GetLogger().SetShowTimestamps(cfg.Default.LogTimestamps)
 
 	logger.Debug("Configuration parsing completed successfully")
 	logger.Trace("Final configuration - Mode: %s, LogLevel: %s, DaemonMode: %t, PollInterval: %s",
