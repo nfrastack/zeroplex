@@ -1,4 +1,3 @@
-// filepath: /home/dave/src/gh/zt-dns-companion/pkg/modes/base.go
 // SPDX-FileCopyrightText: © 2025 Nfrastack <code@nfrastack.com>
 //
 // SPDX-License-Identifier: BSD-3-Clause
@@ -9,11 +8,13 @@ import (
 	"zt-dns-companion/pkg/client"
 	"zt-dns-companion/pkg/config"
 	"zt-dns-companion/pkg/filters"
-	"zt-dns-companion/pkg/logging"
+	"zt-dns-companion/pkg/log"
 	"zt-dns-companion/pkg/utils"
 
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/zerotier/go-zerotier-one/service"
 )
@@ -36,42 +37,55 @@ func NewBaseMode(cfg config.Config, dryRun bool, mode string) *BaseMode {
 
 // FetchNetworks retrieves networks from ZeroTier API
 func (b *BaseMode) FetchNetworks(ctx context.Context) (*service.GetNetworksResponse, error) {
-	logging.APILogger.Trace("Creating ZeroTier API client")
+	logger := log.NewScopedLogger("[api]", b.cfg.Default.LogLevel)
 
 	// Create API client
 	sAPI, err := client.NewServiceAPI(b.cfg.Default.TokenFile)
 	if err != nil {
-		logging.APILogger.Error("Failed to create service API client: %v", err)
+		logger.Error("Failed to create service API client: %v", err)
 		return nil, fmt.Errorf("failed to create service API client: %w", err)
 	}
-	logging.APILogger.Debug("API client created successfully")
 
 	// Create ZeroTier client
 	ztBaseURL := fmt.Sprintf("%s:%d", b.cfg.Default.Host, b.cfg.Default.Port)
-	logging.APILogger.Trace("Creating ZeroTier client with URL: %s", ztBaseURL)
+	logger.Debug("Creating ZeroTier client with URL: %s", ztBaseURL)
 	ztClient, err := service.NewClient(ztBaseURL, service.WithHTTPClient(sAPI))
 	if err != nil {
-		logging.APILogger.Error("Failed to create ZeroTier client: %v", err)
+		logger.Error("Failed to create ZeroTier client: %v", err)
 		return nil, fmt.Errorf("failed to create ZeroTier client: %w", err)
 	}
-	logging.APILogger.Debug("ZeroTier client created successfully")
 
 	// Fetch networks
-	logging.APILogger.Trace("Making API request to fetch networks")
+	logger.Trace("Making API request to fetch networks (GET %s/networks)", ztBaseURL)
 	resp, err := ztClient.GetNetworks(ctx)
 	if err != nil {
-		logging.APILogger.Error("Failed to get networks: %v", err)
+		logger.Error("Failed to get networks: %v (could not access the ZeroTier API server)", err)
 		return nil, fmt.Errorf("failed to get networks: %w", err)
 	}
-	logging.APILogger.Debug("API request completed successfully")
 
-	logging.APILogger.Trace("Parsing API response")
+	// Log raw response body (truncate if very large)
+	var respBodyBytes []byte
+	if resp != nil && resp.Body != nil {
+		respBodyBytes, err = io.ReadAll(resp.Body)
+		if err != nil {
+			logger.Error("Failed to read API response body: %v", err)
+			return nil, fmt.Errorf("failed to read API response body: %w", err)
+		}
+		if len(respBodyBytes) > 2048 {
+			logger.Trace("Raw API response (truncated to 2KB): %s...", string(respBodyBytes[:2048]))
+		} else {
+			logger.Trace("Raw API response: %s", string(respBodyBytes))
+		}
+		// Replace resp.Body so it can be read again
+		resp.Body = io.NopCloser(bytes.NewReader(respBodyBytes))
+	}
+
+	logger.Trace("Parsing API response")
 	networks, err := service.ParseGetNetworksResponse(resp)
 	if err != nil {
-		logging.APILogger.Error("Failed to parse networks response: %v", err)
+		logger.Error("Failed to parse networks response: %v", err)
 		return nil, fmt.Errorf("failed to parse networks response: %w", err)
 	}
-	logging.APILogger.Debug("Response parsed successfully")
 
 	return networks, nil
 }
@@ -83,15 +97,14 @@ func (b *BaseMode) ApplyFilters(networks *service.GetNetworksResponse) {
 
 // LogNetworkDiscovery logs the network discovery process
 func (b *BaseMode) LogNetworkDiscovery(networks *service.GetNetworksResponse, preFilter bool) {
-	modeLogger := logging.GetModeLogger(b.mode)
-	
+	logger := log.NewScopedLogger(fmt.Sprintf("[modes/%s]", b.mode), b.cfg.Default.LogLevel)
+
 	if preFilter {
-		modeLogger.Debug("Retrieved %d networks from ZeroTier", len(*networks.JSON200))
-		modeLogger.Verbose("Network discovery completed successfully")
+		logger.Debug("Retrieved %d networks from ZeroTier", len(*networks.JSON200))
 
 		// Log each network found (before filtering)
 		for i, network := range *networks.JSON200 {
-			modeLogger.Trace("Network %d: ID=%s, Name=%s, Interface=%s, Status=%s",
+			logger.Trace("Network %d: ID=%s, Name=%s, Interface=%s, Status=%s",
 				i+1,
 				utils.GetString(network.Id),
 				utils.GetString(network.Name),
@@ -99,25 +112,29 @@ func (b *BaseMode) LogNetworkDiscovery(networks *service.GetNetworksResponse, pr
 				utils.GetString(network.Status))
 		}
 	} else {
-		modeLogger.Debug("After filtering: %d networks to process", len(*networks.JSON200))
-		modeLogger.Verbose("Network filtering completed, proceeding with configuration...")
+		logger.Debug("After filtering: %d networks to process", len(*networks.JSON200))
 
 		// Log each network that will be processed (after filtering)
 		for i, network := range *networks.JSON200 {
-			modeLogger.Debug("Processing network %d: ID=%s, Name=%s, Interface=%s",
+			logger.Debug("Processing network %d: ID=%s, Name=%s, Interface=%s",
 				i+1,
 				utils.GetString(network.Id),
 				utils.GetString(network.Name),
 				utils.GetString(network.PortDeviceName))
 
+			networkNameOrID := utils.GetString(network.Name)
+			if networkNameOrID == "" {
+				networkNameOrID = utils.GetString(network.Id)
+			}
+
 			if network.Dns != nil && network.Dns.Servers != nil {
-				modeLogger.Verbose("  DNS servers: %v", *network.Dns.Servers)
+				logger.Debug("ZeroTier network [%s]: DNS servers: %v", networkNameOrID, *network.Dns.Servers)
 			}
 			if network.Dns != nil && network.Dns.Domain != nil {
-				modeLogger.Verbose("  DNS domain: %s", *network.Dns.Domain)
+				logger.Debug("ZeroTier network [%s]: DNS domain: %s", networkNameOrID, *network.Dns.Domain)
 			}
 			if network.AssignedAddresses != nil {
-				modeLogger.Verbose("  Assigned addresses: %v", *network.AssignedAddresses)
+				logger.Debug("ZeroTier network [%s]: Assigned addresses: %v", networkNameOrID, *network.AssignedAddresses)
 			}
 		}
 	}
@@ -125,7 +142,8 @@ func (b *BaseMode) LogNetworkDiscovery(networks *service.GetNetworksResponse, pr
 
 // LogConfiguration logs the configuration details
 func (b *BaseMode) LogConfiguration() {
-	logging.ConfigLogger.Debug("Host: %s, Port: %d, TokenFile: %s",
+	logger := log.NewScopedLogger("[config]", b.cfg.Default.LogLevel)
+	logger.Debug("Host: %s, Port: %d, TokenFile: %s",
 		b.cfg.Default.Host, b.cfg.Default.Port, b.cfg.Default.TokenFile)
 }
 
@@ -186,14 +204,13 @@ func (b *BaseMode) GetDNSDomain(network service.Network) string {
 
 // ProcessNetworks handles the common network processing workflow
 func (b *BaseMode) ProcessNetworks(ctx context.Context) (*service.GetNetworksResponse, error) {
-	modeLogger := logging.GetModeLogger(b.mode)
-	
+	logger := log.NewScopedLogger(fmt.Sprintf("[modes/%s]", b.mode), b.cfg.Default.LogLevel)
+
 	// Log configuration
 	b.LogConfiguration()
 
 	// Fetch networks
-	modeLogger.Trace("Fetching networks from ZeroTier API")
-	modeLogger.Verbose("Connecting to ZeroTier API for network discovery...")
+	logger.Debug("Fetching networks from ZeroTier API")
 	networks, err := b.FetchNetworks(ctx)
 	if err != nil {
 		return nil, err
@@ -203,9 +220,7 @@ func (b *BaseMode) ProcessNetworks(ctx context.Context) (*service.GetNetworksRes
 	b.LogNetworkDiscovery(networks, true)
 
 	// Apply filters
-	modeLogger.Trace("Applying network filters")
-	modeLogger.Verbose("Starting network filtering process...")
-	logging.FilterLogger.Trace("ApplyFilters() started")
+	logger.Trace("Applying network filters")
 	b.ApplyFilters(networks)
 
 	// Log discovery (after filtering)
@@ -214,7 +229,7 @@ func (b *BaseMode) ProcessNetworks(ctx context.Context) (*service.GetNetworksRes
 	// Validate networks
 	for _, network := range *networks.JSON200 {
 		if err := b.ValidateNetwork(network); err != nil {
-			modeLogger.Warn("Skipping invalid network: %v", err)
+			logger.Warn("Skipping invalid network: %v", err)
 			continue
 		}
 	}

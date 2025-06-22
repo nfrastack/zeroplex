@@ -6,7 +6,7 @@ package modes
 
 import (
 	"zt-dns-companion/pkg/dns"
-	"zt-dns-companion/pkg/logger"
+	"zt-dns-companion/pkg/log"
 	"zt-dns-companion/pkg/utils"
 
 	"bytes"
@@ -33,6 +33,8 @@ type templateScaffold struct {
 }
 
 func RunNetworkdMode(networks *service.GetNetworksResponse, addReverseDomains, autoRestart, dnsOverTLS, dryRun, multicastDNS, reconcile bool) {
+	logger := log.NewScopedLogger("[networkd]", "info")
+
 	const fileheader = "--- Managed by zt-dns-companion. Do not remove this comment. ---"
 	const networkTemplate = `# {{ .FileHeader }}
 [Match]
@@ -61,16 +63,15 @@ KeepConfiguration=static
 
 	t, err := template.New("network").Parse(networkTemplate)
 	if err != nil {
-		logger.DebugWithPrefix("networkd", "Template parsing error: %v", err)
+		logger.Debug("Template parsing error: %v", err)
 		utils.ErrorHandler("Failed to parse template", err, true)
 	}
-	logger.Trace("Network template parsed successfully")
 
 	serviceAvailable := utils.ServiceExists("systemd-networkd.service")
 	if !serviceAvailable {
-		logger.DebugWithPrefix("networkd", "systemd-networkd.service is not available; changes will not trigger a service restart")
+		logger.Debug("systemd-networkd.service is not available; changes will not trigger a service restart")
 	} else {
-		logger.DebugWithPrefix("networkd", "systemd-networkd.service is available")
+		logger.Debug("systemd-networkd.service is available")
 	}
 
 	found := map[string]struct{}{}
@@ -79,7 +80,7 @@ KeepConfiguration=static
 	logger.Verbose("Processing %d networks for networkd configuration", len(*networks.JSON200))
 
 	for i, network := range *networks.JSON200 {
-		logger.DebugWithPrefix("networkd", "Processing network %d/%d: Interface=%s, Name=%s, ID=%s",
+		logger.Debug("Processing network %d/%d: Interface=%s, Name=%s, ID=%s",
 			i+1, len(*networks.JSON200),
 			utils.GetString(network.PortDeviceName), utils.GetString(network.Name), utils.GetString(network.Id))
 
@@ -92,7 +93,7 @@ KeepConfiguration=static
 
 		if network.Dns.Domain != nil {
 			search[*network.Dns.Domain] = struct{}{}
-			logger.DebugWithPrefix("networkd", "Added DNS domain to search: %s, DNS servers: %v", *network.Dns.Domain, *network.Dns.Servers)
+			logger.Debug("Added DNS domain to search: %s, DNS servers: %v", *network.Dns.Domain, *network.Dns.Servers)
 		}
 
 		if addReverseDomains {
@@ -100,7 +101,7 @@ KeepConfiguration=static
 			reverseDomains := dns.CalculateReverseDomains(network.AssignedAddresses)
 			for _, domain := range reverseDomains {
 				search[domain] = struct{}{}
-				logger.DebugWithPrefix("networkd", "Added reverse domain to search: %s", domain)
+				logger.Debug("Added reverse domain to search: %s", domain)
 			}
 		}
 
@@ -123,25 +124,25 @@ KeepConfiguration=static
 
 		buf := bytes.NewBuffer(nil)
 		if err := t.Execute(buf, out); err != nil {
-			logger.DebugWithPrefix("networkd", "Error executing template for %q: %v", fn, err)
+			logger.Debug("Error executing template for %q: %v", fn, err)
 			utils.ErrorHandler(fmt.Sprintf("Failed to execute template for %q", fn), err, true)
 		}
 		logger.Trace("Template executed successfully for %s", fn)
 
 		if dryRun {
-			logger.DryRunWithPrefix("networkd", "Would generate %q with DNS servers: %s and search domains: %s", fn, strings.Join(out.DNS, ", "), out.Domain)
+			logger.Debug("Would generate %q with DNS servers: %s and search domains: %s", fn, strings.Join(out.DNS, ", "), out.Domain)
 			continue
 		}
 
 		if _, err := os.Stat(fn); err == nil {
 			content, err := os.ReadFile(fn)
 			if err != nil {
-				logger.DebugWithPrefix("networkd", "Error reading file %s: %v", fn, err)
+				logger.Debug("Error reading file %s: %v", fn, err)
 				utils.ErrorHandler(fmt.Sprintf("Failed to read file %q", fn), err, true)
 			}
 
 			if bytes.Equal(content, buf.Bytes()) {
-				logger.InfoWithPrefix("networkd", "No changes needed for file %s; already up-to-date", fn)
+				logger.Info("No changes needed for file %s; already up-to-date", fn)
 				continue
 			}
 			logger.Debug("File %s needs updating", fn)
@@ -149,40 +150,40 @@ KeepConfiguration=static
 			logger.Debug("File %s does not exist, will create", fn)
 		}
 
-		logger.DebugWithPrefix("networkd", "Creating or overwriting file %s", fn)
+		logger.Debug("Creating or overwriting file %s", fn)
 		f, err := os.Create(fn)
 		if err != nil {
-			logger.DebugWithPrefix("networkd", "Error creating file %s: %v", fn, err)
+			logger.Debug("Error creating file %s: %v", fn, err)
 			utils.ErrorHandler(fmt.Sprintf("Failed to create file %q", fn), err, true)
 		}
-		logger.DebugWithPrefix("networkd", "Successfully created file %s", fn)
+		logger.Debug("Successfully created file %s", fn)
 
 		if _, err := f.Write(buf.Bytes()); err != nil {
-			logger.DebugWithPrefix("networkd", "Error writing to file %s: %v", fn, err)
+			logger.Debug("Error writing to file %s: %v", fn, err)
 			utils.ErrorHandler("Failed to write to file", err, true)
 		}
-		logger.DebugWithPrefix("networkd", "Successfully wrote to file %s", fn)
+		logger.Debug("Successfully wrote to file %s", fn)
 
 		f.Close()
-		logger.DebugWithPrefix("networkd", "Closed file %s", fn)
+		logger.Debug("Closed file %s", fn)
 
 		changed = true
 
 		if changed {
-			logger.Infof("Processed Interface=%s, Network=%s, ID=%s, DNS Search Domain=%s, DNS Servers=%v, wrote to /etc/systemd/network/99-%s.network",
+			logger.Info("Processed Interface=%s, Network=%s, ID=%s, DNS Search Domain=%s, DNS Servers=%v, wrote to /etc/systemd/network/99-%s.network",
 				utils.GetString(network.PortDeviceName), utils.GetString(network.Name), utils.GetString(network.Id),
 				utils.GetString(network.Dns.Domain), *network.Dns.Servers, utils.GetString(network.PortDeviceName))
 		}
 	}
 
 	if len(found) > 0 && reconcile {
-		logger.Infof("Found unused networks, reconciling...")
+		logger.Info("Found unused networks, reconciling...")
 
 		for fn := range found {
-			logger.Infof("Removing %q", fn)
+			logger.Info("Removing %q", fn)
 
 			if dryRun {
-				logger.DryRunf("Would remove %q", fn)
+				logger.Debug("Would remove %q", fn)
 				continue
 			}
 
@@ -193,10 +194,10 @@ KeepConfiguration=static
 	}
 
 	if (changed || len(found) > 0) && autoRestart && serviceAvailable {
-		logger.Infof("Files changed; reloading systemd-networkd...")
+		logger.Info("Files changed; reloading systemd-networkd...")
 
 		if dryRun {
-			logger.DryRunf("Would reload systemd-networkd")
+			logger.Debug("Would reload systemd-networkd")
 			return
 		}
 
@@ -208,14 +209,35 @@ KeepConfiguration=static
 	logger.Trace("<<< RunNetworkdMode() completed")
 }
 
-func RunResolvedMode(networks *service.GetNetworksResponse, addReverseDomains, dryRun bool) {
+var managedZTInterfaces = make(map[string]struct{})
+
+func RunResolvedMode(networks *service.GetNetworksResponse, addReverseDomains, dryRun bool, logLevel string) {
+	logger := log.NewScopedLogger("[resolved]", logLevel)
+
 	if !utils.CommandExists("resolvectl") {
 		utils.ErrorHandler("resolvectl is required for systemd-resolved but is not available on this system", nil, true)
 	}
-	logger.DebugWithPrefix("resolved", "resolvectl is available for systemd-resolved commands")
+	logger.Trace("resolvectl is available for systemd-resolved commands")
+
+	currentZT := make(map[string]struct{})
+	for _, network := range *networks.JSON200 {
+		if network.Dns != nil && len(*network.Dns.Servers) != 0 {
+			interfaceName := *network.PortDeviceName
+			currentZT[interfaceName] = struct{}{}
+		}
+	}
+
+	// Restore DNS for interfaces we previously managed but are no longer present
+	for iface := range managedZTInterfaces {
+		if _, stillPresent := currentZT[iface]; !stillPresent {
+			logger.Info("Interface %s no longer present in ZeroTier networks, restoring original DNS", iface)
+			dns.RestoreSavedDNS(iface, logLevel)
+			delete(managedZTInterfaces, iface)
+		}
+	}
 
 	for _, network := range *networks.JSON200 {
-		logger.DebugWithPrefix("resolved", "Processing network: Interface=%s, Name=%s, ID=%s", utils.GetString(network.PortDeviceName), utils.GetString(network.Name), utils.GetString(network.Id))
+		logger.Verbose("Processing network: Interface=%s, Name=%s, ID=%s", utils.GetString(network.PortDeviceName), utils.GetString(network.Name), utils.GetString(network.Id))
 
 		if network.Dns != nil && len(*network.Dns.Servers) != 0 {
 			interfaceName := *network.PortDeviceName
@@ -245,7 +267,10 @@ func RunResolvedMode(networks *service.GetNetworksResponse, addReverseDomains, d
 			}
 			sort.Strings(searchKeys)
 
-			dns.ConfigureDNSAndSearchDomains(interfaceName, dnsServers, searchKeys, dryRun)
+			// Save original DNS before first change
+			dns.SaveCurrentDNSIfNeeded(interfaceName, logLevel)
+			managedZTInterfaces[interfaceName] = struct{}{}
+			dns.ConfigureDNSAndSearchDomains(interfaceName, dnsServers, searchKeys, dryRun, logLevel)
 		}
 	}
 }

@@ -6,8 +6,9 @@ package modes
 
 import (
 	"zt-dns-companion/pkg/config"
-	"zt-dns-companion/pkg/logger"
+	"zt-dns-companion/pkg/log"
 	"zt-dns-companion/pkg/utils"
+	"zt-dns-companion/pkg/dns"
 
 	"context"
 	"fmt"
@@ -22,22 +23,23 @@ type ResolvedMode struct {
 
 // NewResolvedMode creates a new resolved mode runner
 func NewResolvedMode(cfg config.Config, dryRun bool) (*ResolvedMode, error) {
+	logger := log.NewScopedLogger("[modes/resolved]", cfg.Default.LogLevel)
 	// Verify systemd-resolved is available and running
 	logger.Trace("Checking systemd-resolved service status")
 	output, err := utils.ExecuteCommand("systemctl", "is-active", "systemd-resolved.service")
 	if err != nil || output != "active\n" {
-		logger.Errorf("systemd-resolved service check failed: %v", err)
+		logger.Error("systemd-resolved service check failed: %v", err)
 		return nil, fmt.Errorf("systemd-resolved is not running")
 	}
-	logger.Debugf("systemd-resolved service is active")
+	logger.Debug("systemd-resolved service is active")
 
 	// Verify resolvectl is available
 	logger.Trace("Checking if resolvectl command is available")
 	if !utils.CommandExists("resolvectl") {
-		logger.Errorf("resolvectl command not found")
+		logger.Error("resolvectl command not found")
 		return nil, fmt.Errorf("resolvectl is required for systemd-resolved but is not available")
 	}
-	logger.Debugf("resolvectl command is available")
+	logger.Trace("resolvectl command is available")
 
 	return &ResolvedMode{
 		BaseMode: NewBaseMode(cfg, dryRun, "resolved"),
@@ -51,36 +53,24 @@ func (r *ResolvedMode) GetMode() string {
 
 // Run executes the resolved mode logic
 func (r *ResolvedMode) Run(ctx context.Context) error {
+	logger := log.NewScopedLogger("[modes/resolved]", r.GetConfig().Default.LogLevel)
 	logger.Trace(">>> ResolvedMode.Run() started")
-	logger.Debugf("Running in resolved mode (dry-run: %t)", r.IsDryRun())
-	logger.Verbose("Starting ZeroTier network discovery and processing for systemd-resolved")
+	logger.Debug("Running in resolved mode (dry-run: %t)", r.IsDryRun())
 
-	// Log configuration details
-	r.LogConfiguration()
-	logger.Verbose("DNS settings - AddReverseDomains: %t", r.GetConfig().Default.AddReverseDomains)
-
-	// Get ZeroTier networks
-	logger.Trace("Fetching networks from ZeroTier API")
-	logger.Verbose("Connecting to ZeroTier API for network discovery...")
-	networks, err := r.FetchNetworks(ctx)
+	// Use BaseMode.ProcessNetworks for all network fetching, logging, and filtering
+	networks, err := r.ProcessNetworks(ctx)
 	if err != nil {
-		logger.Error("Failed to fetch networks: %v", err)
-		return fmt.Errorf("failed to fetch networks: %w", err)
+		logger.Error("Failed to process networks: %v", err)
+		// Restore DNS for all interfaces with saved state
+		logger.Warn("Restoring DNS for all managed interfaces due to ZeroTier API/network failure")
+		for _, iface := range dns.GetChangedInterfaces() {
+			dns.RestoreSavedDNS(iface, r.GetConfig().Default.LogLevel)
+		}
+		return err
 	}
 
-	// Log networks before filtering
-	r.LogNetworkDiscovery(networks, true)
-
-	// Apply filters
-	logger.Trace("Applying network filters")
-	logger.Verbose("Starting network filtering process...")
-	r.ApplyFilters(networks)
-
-	// Log networks after filtering
-	r.LogNetworkDiscovery(networks, false)
-
 	// Process networks for resolved
-	logger.Verbose("Processing networks for systemd-resolved configuration")
+	logger.Debug("Processing networks for systemd-resolved configuration")
 	logger.Trace("Calling processNetworks() for systemd-resolved integration")
 	err = r.processNetworks(ctx, networks)
 	if err != nil {
@@ -88,14 +78,13 @@ func (r *ResolvedMode) Run(ctx context.Context) error {
 		return err
 	}
 
-	logger.Info("Resolved mode execution completed successfully")
 	logger.Trace("<<< ResolvedMode.Run() completed")
 	return nil
 }
 
 // processNetworks handles the actual network processing for resolved
 func (r *ResolvedMode) processNetworks(ctx context.Context, networks *service.GetNetworksResponse) error {
-	// Call the existing resolved implementation directly
-	RunResolvedMode(networks, r.GetConfig().Default.AddReverseDomains, r.IsDryRun())
+	// Call the existing resolved implementation directly, passing log level
+	RunResolvedMode(networks, r.GetConfig().Default.AddReverseDomains, r.IsDryRun(), r.GetConfig().Default.LogLevel)
 	return nil
 }

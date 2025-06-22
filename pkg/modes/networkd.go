@@ -6,7 +6,7 @@ package modes
 
 import (
 	"zt-dns-companion/pkg/config"
-	"zt-dns-companion/pkg/logger"
+	"zt-dns-companion/pkg/log"
 	"zt-dns-companion/pkg/utils"
 
 	"context"
@@ -22,8 +22,10 @@ type NetworkdMode struct {
 
 // NewNetworkdMode creates a new networkd mode runner
 func NewNetworkdMode(cfg config.Config, dryRun bool) (*NetworkdMode, error) {
+	logger := log.NewScopedLogger("[modes/networkd]", "info")
 	// Verify systemd-networkd is available
 	if !utils.ServiceExists("systemd-networkd.service") {
+		logger.Error("systemd-networkd.service is not available")
 		return nil, fmt.Errorf("systemd-networkd.service is not available")
 	}
 
@@ -34,40 +36,29 @@ func NewNetworkdMode(cfg config.Config, dryRun bool) (*NetworkdMode, error) {
 
 // GetMode returns the mode name
 func (n *NetworkdMode) GetMode() string {
+	logger := log.NewScopedLogger("[modes/networkd]", "info")
+	logger.Trace("GetMode called")
 	return "networkd"
 }
 
 // Run executes the networkd mode logic
 func (n *NetworkdMode) Run(ctx context.Context) error {
+	logger := log.NewScopedLogger("[modes/networkd]", n.GetConfig().Default.LogLevel)
 	logger.Trace(">>> NetworkdMode.Run() started")
-	logger.Debugf("Running in networkd mode (dry-run: %t)", n.IsDryRun())
-	logger.Verbose("Starting ZeroTier network discovery and processing")
+	logger.Debug("Running in networkd mode (dry-run: %t)", n.IsDryRun())
 
 	// Log configuration details
 	n.LogConfiguration()
-	logger.Verbose("DNS settings - OverTLS: %t, AutoRestart: %t, AddReverseDomains: %t, MulticastDNS: %t, Reconcile: %t",
+	logger.Debug("DNS settings - OverTLS: %t, AutoRestart: %t, AddReverseDomains: %t, MulticastDNS: %t, Reconcile: %t",
 		n.GetConfig().Default.DNSOverTLS, n.GetConfig().Default.AutoRestart, n.GetConfig().Default.AddReverseDomains,
 		n.GetConfig().Default.MulticastDNS, n.GetConfig().Default.Reconcile)
 
-	// Get ZeroTier networks
-	logger.Trace("Fetching networks from ZeroTier API")
-	logger.Verbose("Connecting to ZeroTier API for network discovery...")
-	networks, err := n.FetchNetworks(ctx)
+	// Use BaseMode.ProcessNetworks for all network fetching, logging, and filtering
+	networks, err := n.ProcessNetworks(ctx)
 	if err != nil {
-		logger.Error("Failed to fetch networks: %v", err)
-		return fmt.Errorf("failed to fetch networks: %w", err)
+		logger.Error("Failed to process networks: %v", err)
+		return fmt.Errorf("failed to process networks: %w", err)
 	}
-
-	// Log networks before filtering
-	n.LogNetworkDiscovery(networks, true)
-
-	// Apply filters
-	logger.Trace("Applying network filters")
-	logger.Verbose("Starting network filtering process...")
-	n.ApplyFilters(networks)
-
-	// Log networks after filtering
-	n.LogNetworkDiscovery(networks, false)
 
 	// Process networks for networkd
 	logger.Verbose("Processing networks for systemd-networkd configuration")
@@ -78,13 +69,14 @@ func (n *NetworkdMode) Run(ctx context.Context) error {
 		return err
 	}
 
-	logger.Info("Networkd mode execution completed successfully")
 	logger.Trace("<<< NetworkdMode.Run() completed")
 	return nil
 }
 
 // processNetworks handles the actual network processing for networkd
 func (n *NetworkdMode) processNetworks(ctx context.Context, networks *service.GetNetworksResponse) error {
+	logger := log.NewScopedLogger("[modes/networkd]", "info")
+	logger.Trace("processNetworks called")
 	// Call the existing networkd implementation directly
 	RunNetworkdMode(networks, n.GetConfig().Default.AddReverseDomains, n.GetConfig().Default.AutoRestart,
 		n.GetConfig().Default.DNSOverTLS, n.IsDryRun(), n.GetConfig().Default.MulticastDNS, n.GetConfig().Default.Reconcile)
