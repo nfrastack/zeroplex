@@ -6,13 +6,12 @@ package app
 
 import (
 	"zt-dns-companion/pkg/config"
-	"zt-dns-companion/pkg/logger"
+	"zt-dns-companion/pkg/log"
 	"zt-dns-companion/pkg/runner"
-	"zt-dns-companion/pkg/service"
 	"zt-dns-companion/pkg/utils"
-
 	"flag"
 	"fmt"
+	"time"
 )
 
 type App struct {
@@ -24,31 +23,73 @@ func New() *App {
 	return &App{}
 }
 
+// ValidateAndLoadConfig validates and loads configuration from file
+func ValidateAndLoadConfig(configFile string) config.Config {
+	logger := log.NewScopedLogger("[config]", "info")
+	logger.Trace("ValidateAndLoadConfig() started with file: %s", configFile)
+	logger.Debug("Loading configuration from file: %s", configFile)
+	cfg := config.LoadConfiguration(configFile)
+
+	err := config.ValidateConfig(&cfg)
+	if err != nil {
+		logger.Debug("Configuration validation failed: %v", err)
+		utils.ErrorHandler("Validating configuration", err, true)
+	}
+	return cfg
+}
+
+func showStartupBanner(logLevel string, showTimestamps bool, version string) {
+	fmt.Println()
+	fmt.Println("             .o88o.                                 .                       oooo")
+	fmt.Println("             888 \"\"                                .o8                       888")
+	fmt.Println("ooo. .oo.   o888oo  oooo d8b  .oooo.    .oooo.o .o888oo  .oooo.    .ooooo.   888  oooo")
+	fmt.Println("`888P\"Y88b   888    `888\"\"8P `P  )88b  d88(  \"8   888   `P  )88b  d88' \"Y8  888 .8P'")
+	fmt.Println(" 888   888   888     888      .oP\"888  \"\"Y88b.    888    .oP\"888  888        888888.")
+	fmt.Println(" 888   888   888     888     d8(  888  o.  )88b   888 . d8(  888  888   .o8  888 `88b.")
+	fmt.Println("o888o o888o o888o   d888b    `Y888\"\"8o 8\"\"888P'   \"888\" `Y888\"\"8o `Y8bod8P' o888o o888o")
+	fmt.Println()
+    if showTimestamps {
+        timestamp := time.Now().Format("2006-01-02 15:04:05")
+        fmt.Printf("%s Starting ZeroTier DNS Companion version: %s\n", timestamp, version)
+    } else {
+        fmt.Printf("Starting ZeroTier DNS Companion version: %s\n", version)
+    }
+}
+
 // Run starts the application
 func (a *App) Run() error {
-	// Parse command line arguments
 	cfg, dryRun, help, err := a.parseArgs()
 	if err != nil {
 		return err
 	}
-
+	showStartupBanner(cfg.Default.LogLevel, cfg.Default.LogTimestamps, "development")
 	if help {
 		return fmt.Errorf("help requested")
 	}
-
+	// Perform mode auto-detection before creating the runner
+	if cfg.Default.Mode == "auto" {
+		r := runner.New(cfg, dryRun)
+		detectedMode, detected := r.DetectMode()
+		if detected {
+			cfg.Default.Mode = detectedMode
+			log.NewLogger("[runner]", cfg.Default.LogLevel).Info("Auto-detected mode: %s", detectedMode)
+		} else {
+			log.NewLogger("[runner]", cfg.Default.LogLevel).Warn("Failed to auto-detect mode, keeping 'auto'")
+		}
+	}
 	a.cfg = cfg
-
-	// Initialize logger based on config
-	logger.SetLogLevel(cfg.Default.LogLevel)
-	logger.SetTimestamps(cfg.Default.LogTimestamps)
-
-	// Create and run the runner
-	a.runner = runner.New(cfg, dryRun)
-	return a.runner.Run()
+	r := runner.New(cfg, dryRun)
+	if cfg.Default.DaemonMode {
+		r.RunDaemon()
+	} else {
+		r.RunOnce()
+	}
+	return nil
 }
 
 // parseArgs parses command line arguments and loads configuration
 func (a *App) parseArgs() (config.Config, bool, bool, error) {
+	logger := log.NewScopedLogger("[app/args]", "info")
 	logger.Trace("Starting command line argument parsing")
 
 	// Define flags
@@ -99,7 +140,7 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 
 	// Load configuration
 	logger.Verbose("Loading configuration from file: %s", *configFile)
-	cfg := service.ValidateAndLoadConfig(*configFile)
+	cfg := ValidateAndLoadConfig(*configFile)
 	logger.Debug("Configuration loaded and validated successfully")
 
 	// Track which flags were explicitly set
@@ -123,7 +164,7 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 	// Handle oneshot flag - if set, disable daemon mode
 	if explicitFlags["oneshot"] && *oneshot {
 		cfg.Default.DaemonMode = false
-		logger.Debugf("Oneshot mode enabled - daemon mode disabled")
+		logger.Debug("Oneshot mode enabled - daemon mode disabled")
 	}
 	if explicitFlags["mode"] {
 		logger.Trace("Applying explicit mode flag: %s", *mode)
@@ -175,10 +216,10 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 	// Handle profile selection
 	if *selectedProfile != "" {
 		if profile, exists := cfg.Profiles[*selectedProfile]; exists {
-			logger.DebugWithPrefix("config", "Applying selected profile: %s", *selectedProfile)
+			logger.Debug("Applying selected profile: %s", *selectedProfile)
 			cfg.Default = mergeProfiles(cfg.Default, profile)
 		} else {
-			logger.DebugWithPrefix("config", "Selected profile '%s' not found. Using default profile.", *selectedProfile)
+			logger.Debug("Selected profile '%s' not found. Using default profile.", *selectedProfile)
 		}
 	}
 
@@ -195,7 +236,7 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 			logger.Error("Invalid poll interval '%s': %v", cfg.Default.PollInterval, err)
 			return config.Config{}, false, false, fmt.Errorf("invalid poll interval '%s': %w", cfg.Default.PollInterval, err)
 		}
-		logger.Verbose("Daemon mode configured with interval: %s", cfg.Default.PollInterval)
+		logger.Verbose("Running in daemon mode with API polling interval: %s", cfg.Default.PollInterval)
 	} else {
 		logger.Verbose("One-shot mode configured")
 	}
