@@ -6,7 +6,7 @@ package cli
 
 import (
 	"zt-dns-companion/pkg/config"
-	"zt-dns-companion/pkg/logger"
+	"zt-dns-companion/pkg/log"
 
 	"flag"
 	"fmt"
@@ -36,6 +36,7 @@ type Flags struct {
 	MulticastDNS      *bool
 	Reconcile         *bool
 	Token             *string
+	RestoreOnExit     *bool
 }
 
 // ParseFlags initializes and parses command line flags
@@ -61,6 +62,7 @@ func ParseFlags() (*Flags, map[string]bool) {
 		MulticastDNS:      flag.Bool("multicast-dns", false, "Enable Multicast DNS (mDNS). Default: false"),
 		Reconcile:         flag.Bool("reconcile", true, "Automatically remove left networks from systemd-networkd configuration"),
 		Token:             flag.String("token", "", "API token to use. Overrides token-file if provided."),
+		RestoreOnExit:     flag.Bool("restore-on-exit", false, "Restore original DNS settings for all managed interfaces on exit (default: false)"),
 	}
 
 	flag.Parse()
@@ -72,7 +74,7 @@ func ParseFlags() (*Flags, map[string]bool) {
 	explicitFlags := make(map[string]bool)
 	flag.Visit(func(f *flag.Flag) {
 		explicitFlags[f.Name] = true
-		logger.DebugWithPrefix("flag", "Explicit flag detected: %s = %s", f.Name, f.Value.String())
+		log.DebugWithPrefix("flag", "Explicit flag detected: %s = %s", f.Name, f.Value.String())
 	})
 
 	return flags, explicitFlags
@@ -159,5 +161,9 @@ func ApplyExplicitFlags(cfg *config.Config, flags *Flags, explicitFlags map[stri
 		} else {
 			cfg.Default.FilterExclude = []string{}
 		}
+	}
+
+	if explicitFlags["restore-on-exit"] {
+		cfg.Default.RestoreOnExit = *flags.RestoreOnExit
 	}
 }
