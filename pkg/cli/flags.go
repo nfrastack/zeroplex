@@ -26,9 +26,6 @@ type Flags struct {
 	LogLevel          *string
 	LogTimestamps     *bool
 	TokenFile         *string
-	FilterType        *string
-	FilterInclude     *string
-	FilterExclude     *string
 	AddReverseDomains *bool
 	AutoRestart       *bool
 	DNSOverTLS        *bool
@@ -52,9 +49,6 @@ func ParseFlags() (*Flags, map[string]bool) {
 		LogLevel:          flag.String("log-level", "info", "Set the logging level (info or debug). Default: info"),
 		LogTimestamps:     flag.Bool("log-timestamps", false, "Enable timestamps in logs. Default: false"),
 		TokenFile:         flag.String("token-file", "/var/lib/zerotier-one/authtoken.secret", "Path to the ZeroTier authentication token file. Default: /var/lib/zerotier-one/authtoken.secret"),
-		FilterType:        flag.String("filter-type", "none", "Type of filter to apply (interface, network, network_id, or none). Default: none"),
-		FilterInclude:     flag.String("filter-include", "", "Comma-separated list of items to include based on filter-type. Empty means 'all'."),
-		FilterExclude:     flag.String("filter-exclude", "", "Comma-separated list of items to exclude based on filter-type. Empty means 'none'."),
 		AddReverseDomains: flag.Bool("add-reverse-domains", false, "Add ip6.arpa and in-addr.arpa search domains. Default: false"),
 		AutoRestart:       flag.Bool("auto-restart", true, "Automatically restart systemd-networkd when things change. Default: true"),
 		DNSOverTLS:        flag.Bool("dns-over-tls", false, "Automatically prefer DNS-over-TLS. Default: false"),
@@ -87,7 +81,6 @@ func validateFlagsWithValues() {
 			if strings.HasPrefix(arg, "--") || (len(arg) > 1 && arg[1] != '-') {
 				flagName := strings.TrimLeft(arg, "-")
 				if flagName == "log-level" || flagName == "mode" || flagName == "profile" ||
-					flagName == "filter-type" || flagName == "filter-include" || flagName == "filter-exclude" ||
 					flagName == "host" || flagName == "token" || flagName == "token-file" || flagName == "config-file" {
 
 					hasValue := false
@@ -142,27 +135,6 @@ func ApplyExplicitFlags(cfg *config.Config, flags *Flags, explicitFlags map[stri
 	if explicitFlags["token-file"] {
 		cfg.Default.TokenFile = *flags.TokenFile
 	}
-	if explicitFlags["filter-type"] {
-		cfg.Default.FilterType = *flags.FilterType
-	}
-
-	// Handle filter-include and filter-exclude flags
-	if explicitFlags["filter-include"] {
-		if *flags.FilterInclude != "" {
-			cfg.Default.FilterInclude = strings.Split(*flags.FilterInclude, ",")
-		} else {
-			cfg.Default.FilterInclude = []string{}
-		}
-	}
-
-	if explicitFlags["filter-exclude"] {
-		if *flags.FilterExclude != "" {
-			cfg.Default.FilterExclude = strings.Split(*flags.FilterExclude, ",")
-		} else {
-			cfg.Default.FilterExclude = []string{}
-		}
-	}
-
 	if explicitFlags["restore-on-exit"] {
 		cfg.Default.RestoreOnExit = *flags.RestoreOnExit
 	}
