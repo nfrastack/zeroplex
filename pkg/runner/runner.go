@@ -5,12 +5,12 @@
 package runner
 
 import (
-	"zt-dns-companion/pkg/config"
-	"zt-dns-companion/pkg/daemon"
-	"zt-dns-companion/pkg/log"
-	"zt-dns-companion/pkg/modes"
-	"zt-dns-companion/pkg/utils"
-	"zt-dns-companion/pkg/dns"
+	"zeroflex/pkg/config"
+	"zeroflex/pkg/daemon"
+	"zeroflex/pkg/log"
+	"zeroflex/pkg/modes"
+	"zeroflex/pkg/utils"
+	"zeroflex/pkg/dns"
 
 	"context"
 	"fmt"
@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-// Runner manages the execution of the ZT DNS Companion in both one-shot and daemon modes
+// Runner manages the execution of the ZeroFlex in both one-shot and daemon modes
 type Runner struct {
 	cfg            config.Config
 	dryRun         bool
@@ -190,7 +190,6 @@ func (r *Runner) RunDaemon() error {
 	return r.runDaemon()
 }
 
-// executeTask performs the actual ZT DNS companion work
 func (r *Runner) executeTask(ctx context.Context) error {
 	taskLogger := log.NewScopedLogger("[runner/task]", r.cfg.Default.LogLevel)
 

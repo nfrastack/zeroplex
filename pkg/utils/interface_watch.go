@@ -9,7 +9,7 @@ import (
 
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
-	"zt-dns-companion/pkg/log"
+	"zeroflex/pkg/log"
 )
 
 // InterfaceEventType represents the type of interface event

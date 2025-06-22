@@ -125,7 +125,7 @@ func LoadConfiguration(configFile string) Config {
 		if err == nil {
 			loadedConfig, err := LoadConfig(configFile)
 			if err != nil {
-				if configFile != "/etc/zt-dns-companion.yaml" {
+				if configFile != "/etc/zeroflex.yaml" {
 					fmt.Fprintf(os.Stderr, "ERROR: Configuration file %s not found: %v\n", configFile, err)
 					os.Exit(1)
 				}
@@ -141,7 +141,7 @@ func LoadConfiguration(configFile string) Config {
 
 			return loadedConfig
 		} else if os.IsNotExist(err) {
-			if configFile != "/etc/zt-dns-companion.yaml" {
+			if configFile != "/etc/zeroflex.yaml" {
 				fmt.Fprintf(os.Stderr, "ERROR: Configuration file %s not found: %v\n", configFile, err)
 				os.Exit(1)
 				}

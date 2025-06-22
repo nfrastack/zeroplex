@@ -5,8 +5,8 @@
 package dns
 
 import (
-	"zt-dns-companion/pkg/log"
-	"zt-dns-companion/pkg/utils"
+	"zeroflex/pkg/log"
+	"zeroflex/pkg/utils"
 
 	"fmt"
 	"math"

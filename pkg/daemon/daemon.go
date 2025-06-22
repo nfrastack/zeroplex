@@ -5,7 +5,7 @@
 package daemon
 
 import (
-	"zt-dns-companion/pkg/log"
+	"zeroflex/pkg/log"
 
 	"context"
 	"fmt"

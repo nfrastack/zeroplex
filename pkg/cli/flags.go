@@ -5,8 +5,8 @@
 package cli
 
 import (
-	"zt-dns-companion/pkg/config"
-	"zt-dns-companion/pkg/log"
+	"zeroflex/pkg/config"
+	"zeroflex/pkg/log"
 
 	"flag"
 	"fmt"
@@ -49,7 +49,7 @@ func ParseFlags() (*Flags, map[string]bool) {
 		VersionLong:       flag.Bool("--version", false, "Print the version and exit (alias)"),
 		Help:              flag.Bool("help", false, "Show help message and exit"),
 		HelpShort:         flag.Bool("h", false, "Show help message and exit (alias)"),
-		ConfigFile:        flag.String("config-file", "/etc/zt-dns-companion.conf", "Path to the configuration file"),
+		ConfigFile:        flag.String("config-file", "/etc/zeroflex.conf", "Path to the configuration file"),
 		ConfigFileShort:   flag.String("config", "", "Path to the configuration file (alias)"),
 		ConfigFileC:       flag.String("c", "", "Path to the configuration file (alias)"),
 		DryRun:            flag.Bool("dry-run", false, "Enable dry-run mode. No changes will be made."),

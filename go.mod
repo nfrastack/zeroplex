@@ -1,4 +1,4 @@
-module zt-dns-companion
+module zeroflex
 
 go 1.21.0
 

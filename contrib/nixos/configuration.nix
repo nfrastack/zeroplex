@@ -1,16 +1,16 @@
 {
   imports = [
-    inputs.zt-dns-companion.nixosModules.default
+    inputs.zeroflex.nixosModules.default
   ];
 
   # Include the package in system packages if you want to use it manually
   # without the systemd service
   environment.systemPackages = [
-    inputs.zt-dns-companion.packages.${pkgs.system}.zt-dns-companion
+    inputs.zeroflex.packages.${pkgs.system}.zeroflex
   ];
 
-  services.zt-dns-companion = {
-    # Enable the ZT DNS Companion module
+  services.zeroflex = {
+    # Enable the ZeroFlex module
     enable = true;
 
     # Basic settings
@@ -29,8 +29,16 @@
     # System behavior settings
     autoRestart = true;                         # Restart systemd-networkd when changes occur
     reconcile = true;                           # Remove left networks from systemd-networkd config
-    timerInterval = "5m";                       # How often to run the service
     restoreOnExit = false;                      # Restore DNS for all managed interfaces on exit
+
+    # Interface watch settings
+    interfaceWatch = {
+      mode = "event";                           # Options: "event", "poll", "off"
+      retry = {
+        count = 10;                             # Number of retry attempts on failure
+        delay = "10s";                          # Delay between retries
+      };
+    };
 
     # Example profiles using advanced filtering
     profiles = {

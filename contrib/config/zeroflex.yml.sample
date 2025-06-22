@@ -1,4 +1,4 @@
-# ZT DNS Companion Configuration
+# ZeroFlex Configuration
 
 default:
   mode: "auto"

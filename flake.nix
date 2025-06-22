@@ -18,14 +18,14 @@
       packages = forAllSystems (system:
         let pkgs = nixpkgsFor.${system};
         in {
-          zt-dns-companion = pkgs.buildGoModule {
-            pname = "zt-dns-companion";
+          zeroflex = pkgs.buildGoModule {
+            pname = "zeroflex";
             inherit version;
             src = ./.;
 
             meta = {
               description = "Manage ZeroTier DNS with systemd-resolved or networkd";
-              homepage = "https://github.com/nfrastack/zt-dns-companion";
+              homepage = "https://github.com/nfrastack/zeroflex";
               license = "BSD-3";
               maintainers = [
                 {
@@ -55,11 +55,11 @@
           ];
         });
 
-      defaultPackage = forAllSystems (system: self.packages.${system}.zt-dns-companion);
+      defaultPackage = forAllSystems (system: self.packages.${system}.zeroflex);
 
       nixosModules.default = { config, lib, pkgs, ... }:
         let
-          cfg = config.services.zt-dns-companion;
+          cfg = config.services.zeroflex;
 
           # Utility function to get directory part of path
           getDir = path:
@@ -68,7 +68,7 @@
             in
               if components == null then "." else builtins.head components;
         in {
-          options.services.zt-dns-companion = {
+          options.services.zeroflex = {
             enable = lib.mkEnableOption {
               default = false;
               description = "Enable the ZeroTier DNS Companion module to configure the tool.";
@@ -82,21 +82,21 @@
 
             package = lib.mkOption {
               type = lib.types.package;
-              default = self.packages.${pkgs.system}.zt-dns-companion;
+              default = self.packages.${pkgs.system}.zeroflex;
               description = "ZeroTier DNS Companion package to use.";
             };
 
             configFile = lib.mkOption {
               type = lib.types.str;
-              default = "/etc/zt-dns-companion.yml";
-              description = "Path to the YAML configuration file for ZT DNS Companion.";
+              default = "/etc/zeroflex.yml";
+              description = "Path to the YAML configuration file for ZeroFlex.";
             };
 
             profiles = lib.mkOption {
               type = with lib.types; attrsOf (attrsOf anything);
               default = {};
               description = ''
-                Additional profiles for the zt-dns-companion configuration using advanced filtering.
+                Additional profiles for the zeroflex configuration using advanced filtering.
                 Each profile is an attribute set where the key is the profile name
                 and the value is an attribute set of options for that profile.
 
@@ -119,7 +119,7 @@
               type = lib.types.str;
               default = "";
               description = ''
-                The profile to load for the zt-dns-companion service. This should match one of the keys in the `profiles` option.
+                The profile to load for the zeroflex service. This should match one of the keys in the `profiles` option.
                 If not specified, the default profile will be used.
               '';
             };
@@ -226,13 +226,13 @@
             environment.systemPackages = [ cfg.package ];
 
             # Always write configuration file when service is enabled
-            system.activationScripts.zt-dns-companion-config = {
+            system.activationScripts.zeroflex-config = {
               text = ''
                 if [ ! -e "${getDir cfg.configFile}" ]; then
                   mkdir -p "${getDir cfg.configFile}"
                 fi
                 cat > ${cfg.configFile} << 'EOC'
-# ZT DNS Companion Configuration
+# ZeroFlex Configuration
 
 default:
   mode: "${cfg.mode}"
@@ -260,7 +260,7 @@ EOC
               deps = [];
             };
 
-            systemd.services.zt-dns-companion = lib.mkIf cfg.service.enable {
+            systemd.services.zeroflex = lib.mkIf cfg.service.enable {
               description = "ZeroTier DNS Companion";
               wantedBy = [ "multi-user.target" ];
               restartTriggers = [
@@ -274,7 +274,7 @@ EOC
                     profileArg = if cfg.profile != "" then "--profile ${cfg.profile}" else "";
                     logTimestampsArg = "--log-timestamps=false";
                     args = lib.strings.concatStringsSep " " (lib.lists.filter (s: s != "") [
-                      "${cfg.package}/bin/zt-dns-companion"
+                      "${cfg.package}/bin/zeroflex"
                       configFileArg
                       profileArg
                       logTimestampsArg
@@ -286,7 +286,7 @@ EOC
                 Restart = "always";
                 StandardOutput = "journal";
                 StandardError = "journal";
-                SyslogIdentifier = "zt-dns-companion";
+                SyslogIdentifier = "zeroflex";
               };
             };
           };

@@ -1,15 +1,15 @@
 # Systemd Examples
 
-This directory contains example systemd service files and configurations for deploying the ZT DNS Companion application.
+This directory contains example systemd service files and configurations for deploying the ZeroFlex application.
 
-## Example: zt-dns-companion.service
+## Example: zeroflex.service
 
-The `zt-dns-companion.service` file is a systemd service unit that can be used to manage the ZT DNS Companion application as a background service. To use it:
+The `zeroflex.service` file is a systemd service unit that can be used to manage the ZeroFlex application as a background service. To use it:
 
 1. Copy the service file to the systemd directory:
 
    ```bash
-   sudo cp zt-dns-companion.service /etc/systemd/system/
+   sudo cp zeroflex.service /etc/systemd/system/
    ```
 
 2. Reload the systemd daemon to recognize the new service:
@@ -21,28 +21,28 @@ The `zt-dns-companion.service` file is a systemd service unit that can be used t
 3. Enable the service to start on boot:
 
    ```bash
-   sudo systemctl enable zt-dns-companion
+   sudo systemctl enable zeroflex
    ```
 
 4. Start the service:
 
    ```bash
-   sudo systemctl start zt-dns-companion
+   sudo systemctl start zeroflex
    ```
 
 5. Check the service status:
 
    ```bash
-   sudo systemctl status zt-dns-companion
+   sudo systemctl status zeroflex
    ```
 
 ### Adding Command-Line Arguments
 
-You can customize the behavior of the ZT DNS Companion application by adding command-line arguments to the `ExecStart` line in the service file. For example:
+You can customize the behavior of the ZeroFlex application by adding command-line arguments to the `ExecStart` line in the service file. For example:
 
 ```ini
 [Service]
-ExecStart=/usr/local/bin/zt-dns-companion --log-level debug --dry-run
+ExecStart=/usr/local/bin/zeroflex --log-level debug --dry-run
 ```
 
 In this example:
@@ -54,12 +54,12 @@ After modifying the service file, reload the systemd daemon and restart the serv
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl restart zt-dns-companion
+sudo systemctl restart zeroflex
 ```
 
 ### Using Profiles for Configuration
 
-`zt-dns-companion.service` support the use of profiles to simplify configuration management. Profiles allow you to define specific settings in configuration files, avoiding the need to pass multiple arguments directly to the service.
+`zeroflex.service` support the use of profiles to simplify configuration management. Profiles allow you to define specific settings in configuration files, avoiding the need to pass multiple arguments directly to the service.
 
 #### How to Use Profiles
 
@@ -69,12 +69,12 @@ sudo systemctl restart zt-dns-companion
 
    ```ini
    [Service]
-   ExecStart=/usr/bin/zt-dns-companion -profile my-profile
+   ExecStart=/usr/bin/zeroflex -profile my-profile
    ```
 
 3. Reload the systemd daemon and restart the service:
 
    ```bash
    sudo systemctl daemon-reload
-   sudo systemctl restart zt-dns-companion
+   sudo systemctl restart zeroflex
    ```

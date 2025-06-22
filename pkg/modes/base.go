@@ -5,11 +5,11 @@
 package modes
 
 import (
-	"zt-dns-companion/pkg/client"
-	"zt-dns-companion/pkg/config"
-	"zt-dns-companion/pkg/filters"
-	"zt-dns-companion/pkg/log"
-	"zt-dns-companion/pkg/utils"
+	"zeroflex/pkg/client"
+	"zeroflex/pkg/config"
+	"zeroflex/pkg/filters"
+	"zeroflex/pkg/log"
+	"zeroflex/pkg/utils"
 
 	"bytes"
 	"context"

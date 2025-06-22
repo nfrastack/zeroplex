@@ -9,8 +9,7 @@ devenv.local.nix
 .pre-commit-config.yaml
 
 bin/
-zt-dns-companion.yml
-zt-dns-companion
+zeroflex.yml
 result/
 
 .vscode/settings.json

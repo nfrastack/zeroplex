@@ -5,9 +5,9 @@
 package modes
 
 import (
-	"zt-dns-companion/pkg/config"
-	"zt-dns-companion/pkg/log"
-	"zt-dns-companion/pkg/utils"
+	"zeroflex/pkg/config"
+	"zeroflex/pkg/log"
+	"zeroflex/pkg/utils"
 
 	"context"
 	"fmt"

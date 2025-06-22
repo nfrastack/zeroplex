@@ -5,8 +5,8 @@
 package filters
 
 import (
-	"zt-dns-companion/pkg/config"
-	"zt-dns-companion/pkg/log"
+	"zeroflex/pkg/config"
+	"zeroflex/pkg/log"
 
 	"encoding/json"
 	"fmt"

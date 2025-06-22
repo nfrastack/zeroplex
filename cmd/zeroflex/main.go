@@ -5,7 +5,7 @@
 package main
 
 import (
-	"zt-dns-companion/pkg/app"
+	"zeroflex/pkg/app"
 )
 
 // Version information

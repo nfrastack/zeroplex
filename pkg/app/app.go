@@ -5,10 +5,10 @@
 package app
 
 import (
-	"zt-dns-companion/pkg/config"
-	"zt-dns-companion/pkg/log"
-	"zt-dns-companion/pkg/runner"
-	"zt-dns-companion/pkg/utils"
+	"zeroflex/pkg/config"
+	"zeroflex/pkg/log"
+	"zeroflex/pkg/runner"
+	"zeroflex/pkg/utils"
 	"flag"
 	"fmt"
 	"os"
@@ -60,9 +60,9 @@ func (a *App) Run() error {
 		if err.Error() == "version requested" {
 			if cfg.Default.LogTimestamps {
 				timestamp := time.Now().Format("2006-01-02 15:04:05")
-				fmt.Printf("%s ZeroTier DNS Companion version: %s\n", timestamp, getVersionString())
+				fmt.Printf("%s ZeroFlex version: %s\n", timestamp, getVersionString())
 			} else {
-				fmt.Printf("ZeroTier DNS Companion version: %s\n", getVersionString())
+				fmt.Printf("ZeroFlex version: %s\n", getVersionString())
 			}
 			return nil
 		}
@@ -76,18 +76,18 @@ func (a *App) Run() error {
 	if os.Geteuid() != 0 {
 		if cfg.Default.LogTimestamps {
 			timestamp := time.Now().Format("2006-01-02 15:04:05")
-			fmt.Printf("%s ZeroTier DNS Companion version: %s\n", timestamp, getVersionString())
+			fmt.Printf("%s ZeroFlex version: %s\n", timestamp, getVersionString())
 		} else {
-			fmt.Printf("ZeroTier DNS Companion version: %s\n", getVersionString())
+			fmt.Printf("ZeroFlex version: %s\n", getVersionString())
 		}
 		fmt.Fprintln(os.Stderr, "This application must be run as root. Exiting.")
 		os.Exit(1)
 	}
 	if cfg.Default.LogTimestamps {
 		timestamp := time.Now().Format("2006-01-02 15:04:05")
-		fmt.Printf("%s ZeroTier DNS Companion version: %s\n", timestamp, getVersionString())
+		fmt.Printf("%s ZeroFlex version: %s\n", timestamp, getVersionString())
 	} else {
-		fmt.Printf("ZeroTier DNS Companion version: %s\n", getVersionString())
+		fmt.Printf("ZeroFlex version: %s\n", getVersionString())
 	}
 	// Perform mode auto-detection before creating the runner
 	if cfg.Default.Mode == "auto" {
@@ -117,9 +117,9 @@ func getVersionString() string {
 func printHelpWithVersion(showTimestamps bool) {
 	if showTimestamps {
 		timestamp := time.Now().Format("2006-01-02 15:04:05")
-		fmt.Printf("%s ZeroTier DNS Companion version: %s\n", timestamp, getVersionString())
+		fmt.Printf("%s ZeroFlex version: %s\n", timestamp, getVersionString())
 	} else {
-		fmt.Printf("ZeroTier DNS Companion version: %s\n", getVersionString())
+		fmt.Printf("ZeroFlex version: %s\n", getVersionString())
 	}
 	fmt.Println()
 	flag.PrintDefaults()
@@ -139,16 +139,16 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 	helpShort := flag.Bool("h", false, "Show help message and exit (alias)")
 	version := flag.Bool("version", false, "Show version and exit")
 	versionShort := flag.Bool("v", false, "Show version and exit (alias)")
-	configFile := flag.String("config-file", "/etc/zt-dns-companion.yaml", "Path to the configuration file")
+	configFile := flag.String("config-file", "/etc/zeroflex.yaml", "Path to the configuration file")
 	configFileShort := flag.String("config", "", "Path to the configuration file (alias)")
 	configFileC := flag.String("c", "", "Path to the configuration file (alias)")
 	dryRun := flag.Bool("dry-run", false, "Enable dry-run mode. No changes will be made.")
 	mode := flag.String("mode", "", "Mode of operation (networkd, resolved, or auto).")
-	host := flag.String("host", "", "ZeroTier client host address.")
-	port := flag.Int("port", 0, "ZeroTier client port number.")
+	host := flag.String("host", "", "ZeroFlex client host address.")
+	port := flag.Int("port", 0, "ZeroFlex client port number.")
 	logLevel := flag.String("log-level", "", "Set the logging level (error, warn, info, verbose, debug, or trace).")
 	logTimestamps := flag.Bool("log-timestamps", true, "Enable timestamps in logs. Default: true")
-	tokenFile := flag.String("token-file", "", "Path to the ZeroTier authentication token file.")
+	tokenFile := flag.String("token-file", "", "Path to the ZeroFlex authentication token file.")
 	token := flag.String("token", "", "API token to use. Overrides token-file if provided.")
 
 	logger.Verbose("Defined command line flags")

@@ -1,11 +1,11 @@
 [Unit]
-Description=ZeroTier DNS Companion
+Description=ZeroFlex
 Requires=zerotier-one.service
 After=zerotier-one.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/zt-dns-companion
+ExecStart=/usr/bin/zeroflex
 
 [Install]
 WantedBy=multi-user.target
