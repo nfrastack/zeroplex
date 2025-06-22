@@ -68,7 +68,7 @@ func ParseFlags() (*Flags, map[string]bool) {
 	explicitFlags := make(map[string]bool)
 	flag.Visit(func(f *flag.Flag) {
 		explicitFlags[f.Name] = true
-		log.DebugWithPrefix("flag", "Explicit flag detected: %s = %s", f.Name, f.Value.String())
+		log.NewScopedLogger("[flag]", "debug").Debug("Explicit flag detected: %s = %s", f.Name, f.Value.String())
 	})
 
 	return flags, explicitFlags
