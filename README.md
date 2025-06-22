@@ -84,6 +84,7 @@ To change the way the tool operates, you can pass various arguments via the comm
 - `-dns-over-tls`: (networkd) Enable DNS-over-TLS for supported configurations (default: false).
 - `-multicast-dns`: (networkd) Enable multicast DNS (mDNS) for ZeroTier interfaces (default: false).
 - `-reconcile`: (networkd) Remove unused network files when networks are no longer active (default: true).
+- `-restore-on-exit`: Restore original DNS settings for all managed interfaces on exit (default: false).
 
 ### Filtering Networks and Interfaces
 
@@ -161,6 +162,7 @@ default:
   filter_exclude: []
   daemon_mode: false
   daemon_interval: "1m"
+  restore_on_exit: false  # Restore DNS for all managed interfaces on exit
 
 profiles:
   # Development profile with daemon mode
@@ -173,6 +175,7 @@ profiles:
     filter_include:
       - "zt12345678"
       - "zt87654321"
+    restore_on_exit: false
 
   # Production profile
   production:
@@ -183,6 +186,7 @@ profiles:
     filter_include:
       - "prod_network"
       - "mgmt_network"
+    restore_on_exit: false
 ```
 
 #### Using Profiles
