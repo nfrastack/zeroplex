@@ -6,7 +6,7 @@ package filters
 
 import (
 	"zt-dns-companion/pkg/config"
-	"zt-dns-companion/pkg/logger"
+	"zt-dns-companion/pkg/log"
 
 	"encoding/json"
 	"fmt"
@@ -67,28 +67,31 @@ func DefaultFilterConfig() FilterConfig {
 	}
 }
 
-// ApplyFilters applies advanced filtering
+// ApplyFilters applies filtering
 func ApplyFilters(networks *service.GetNetworksResponse, profile config.Profile) {
+	logger := log.NewLogger("[filters]", profile.LogLevel)
 	logger.Trace("ApplyFilters() started")
 
 	if !profile.HasAdvancedFilters() {
-		logger.DebugWithPrefix("filter", "No filters configured - processing all networks")
+		logger.Debug("No filters configured - processing all networks")
 		return
 	}
 
-	logger.DebugWithPrefix("filter", "Applying filtering")
+	logger.Debug("Applying filtering")
 	logger.Verbose("Profile has %d filter configurations", len(profile.Filters))
 
 	filterOptions, err := profile.GetAdvancedFilterConfig()
 	if err != nil {
-		logger.ErrorWithPrefix("filter", "Failed to get advanced filter config: %v", err)
+		logger := log.NewScopedLogger("[filters]", "error")
+		logger.Error("Failed to get advanced filter config: %v", err)
 		return
 	}
 
 	logger.Trace("Converting filter options to FilterConfig")
 	filterConfig, err := NewFilterFromStructuredOptions(filterOptions)
 	if err != nil {
-		logger.ErrorWithPrefix("filter", "Failed to parse advanced filters: %v", err)
+		logger := log.NewScopedLogger("[filters]", "error")
+		logger.Error("Failed to parse advanced filters: %v", err)
 		return
 	}
 
@@ -98,25 +101,27 @@ func ApplyFilters(networks *service.GetNetworksResponse, profile config.Profile)
 
 // ApplyAdvancedFilters applies filtering with multiple filters and AND/OR operations
 func ApplyAdvancedFilters(networks *service.GetNetworksResponse, filterConfig FilterConfig) {
+	logger := log.NewScopedLogger("[filters]", "debug")
+
 	if len(filterConfig.Filters) == 0 || (len(filterConfig.Filters) == 1 && filterConfig.Filters[0].Type == FilterTypeNone) {
-		logger.DebugWithPrefix("filter", "No advanced filtering applied - no filters configured")
+		logger.Debug("No filtering applied - no filters configured")
 		return
 	}
 
-	logger.DebugWithPrefix("filter", "Applying filtering with %d filters", len(filterConfig.Filters))
+	logger.Debug("Applying filtering with %d filters", len(filterConfig.Filters))
 
 	filteredNetworks := []service.Network{}
 	for _, network := range *networks.JSON200 {
 		// Use evaluation system
 		if filterConfig.Evaluate(network, evaluateZTFilter) {
 			filteredNetworks = append(filteredNetworks, network)
-			logger.DebugWithPrefix("filter", "Network %s passed advanced filtering", getNetworkDisplayName(network))
+			logger.Debug("Network %s passed filtering", getNetworkDisplayName(network))
 		} else {
-			logger.DebugWithPrefix("filter", "Network %s filtered out by advanced filtering", getNetworkDisplayName(network))
+			logger.Debug("Network %s filtered out by filtering", getNetworkDisplayName(network))
 		}
 	}
 
-	logger.DebugWithPrefix("filter", "Advanced filtering: %d of %d networks passed", len(filteredNetworks), len(*networks.JSON200))
+	logger.Debug("filtering: %d of %d networks passed", len(filteredNetworks), len(*networks.JSON200))
 	*networks.JSON200 = filteredNetworks
 }
 
@@ -167,6 +172,8 @@ func (fc FilterConfig) Evaluate(network service.Network, evaluator func(Filter, 
 
 // evaluateZTFilter evaluates a single filter against a ZeroTier network
 func evaluateZTFilter(filter Filter, network service.Network) bool {
+	logger := log.NewScopedLogger("[filters]", "debug")
+
 	switch filter.Type {
 	case FilterTypeNone:
 		return true
@@ -226,7 +233,7 @@ func evaluateZTFilter(filter Filter, network service.Network) bool {
 		return false
 
 	default:
-		logger.DebugWithPrefix("filter", "Unknown filter type: %s", filter.Type)
+		logger.Debug("Unknown filter type: %s", filter.Type)
 		return false
 	}
 }
@@ -282,11 +289,13 @@ func evaluateConditions(value string, conditions []FilterCondition) bool {
 
 // matchesSingleCondition checks if a value matches a single condition
 func matchesSingleCondition(value, pattern string) bool {
+	logger := log.NewScopedLogger("[filters]", "debug")
+
 	// Support regex patterns if they start with ^
 	if strings.HasPrefix(pattern, "^") {
 		regex, err := regexp.Compile(pattern)
 		if err != nil {
-			logger.DebugWithPrefix("filter", "Invalid regex pattern %s: %v", pattern, err)
+			logger.Debug("Invalid regex pattern %s: %v", pattern, err)
 			return false
 		}
 		return regex.MatchString(value)
@@ -304,6 +313,8 @@ func matchesSingleCondition(value, pattern string) bool {
 
 // LoadAdvancedFiltersFromYAML loads Filters from YAML configuration
 func LoadAdvancedFiltersFromYAML(data []byte) (FilterConfig, error) {
+	logger := log.NewScopedLogger("[filters]", "error")
+
 	var config FilterConfig
 
 	// Try to unmarshal as FilterConfig first
@@ -314,6 +325,7 @@ func LoadAdvancedFiltersFromYAML(data []byte) (FilterConfig, error) {
 	// Fallback to parsing as raw map for flexibility
 	var rawConfig map[string]interface{}
 	if err := json.Unmarshal(data, &rawConfig); err != nil {
+		logger.Error("Failed to parse filter configuration: %v", err)
 		return FilterConfig{}, fmt.Errorf("failed to parse filter configuration: %w", err)
 	}
 
@@ -324,6 +336,7 @@ func LoadAdvancedFiltersFromYAML(data []byte) (FilterConfig, error) {
 				if filterMap, ok := filterRaw.(map[string]interface{}); ok {
 					filter, err := parseFilterFromMap(filterMap)
 					if err != nil {
+						logger.Error("Failed to parse filter: %v", err)
 						return FilterConfig{}, fmt.Errorf("failed to parse filter: %w", err)
 					}
 					config.Filters = append(config.Filters, filter)
@@ -337,6 +350,8 @@ func LoadAdvancedFiltersFromYAML(data []byte) (FilterConfig, error) {
 
 // NewFilterFromStructuredOptions creates a FilterConfig from structured options
 func NewFilterFromStructuredOptions(options map[string]interface{}) (FilterConfig, error) {
+	logger := log.NewScopedLogger("[filters]", "error")
+
 	config := FilterConfig{}
 
 	// Extract filters array from options
@@ -345,6 +360,7 @@ func NewFilterFromStructuredOptions(options map[string]interface{}) (FilterConfi
 			for _, filterMap := range filtersSlice {
 				filter, err := parseFilterFromMap(filterMap)
 				if err != nil {
+					logger.Error("Failed to parse filter: %v", err)
 					return FilterConfig{}, fmt.Errorf("failed to parse filter: %w", err)
 				}
 				config.Filters = append(config.Filters, filter)
@@ -355,6 +371,7 @@ func NewFilterFromStructuredOptions(options map[string]interface{}) (FilterConfi
 				if filterMap, ok := filterRaw.(map[string]interface{}); ok {
 					filter, err := parseFilterFromMap(filterMap)
 					if err != nil {
+						logger.Error("Failed to parse filter: %v", err)
 						return FilterConfig{}, fmt.Errorf("failed to parse filter: %w", err)
 					}
 					config.Filters = append(config.Filters, filter)
