@@ -172,6 +172,12 @@
               description = "Interval for polling execution (e.g., 1m, 5m, 1h, 1d).";
             };
 
+            restoreOnExit = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = "Restore original DNS settings for all managed interfaces on exit.";
+            };
+
           };
 
           config = lib.mkIf cfg.enable {
@@ -212,6 +218,7 @@
                     token_file: "${cfg.tokenFile}"
                     daemon_mode: ${lib.boolToString cfg.daemonMode}
                     poll_interval: "${cfg.pollInterval}"
+                    restore_on_exit: ${lib.boolToString cfg.restoreOnExit}
 
                   ${lib.optionalString (cfg.profiles != {}) ''
                   profiles:
