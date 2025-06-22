@@ -80,12 +80,6 @@
               description = "Enable the systemd service for ZeroTier DNS Companion.";
             };
 
-            service.timerInterval = lib.mkOption {
-              type = lib.types.str;
-              default = "1m";
-              description = "Interval for the systemd timer (e.g., 1m, 5m, 1h).";
-            };
-
             package = lib.mkOption {
               type = lib.types.package;
               default = self.packages.${pkgs.system}.zt-dns-companion;
@@ -94,7 +88,7 @@
 
             configFile = lib.mkOption {
               type = lib.types.str;
-              default = "/etc/zt-dns-companion.yaml";
+              default = "/etc/zt-dns-companion.yml";
               description = "Path to the YAML configuration file for ZT DNS Companion.";
             };
 
@@ -154,6 +148,42 @@
               description = "Set the logging level (error, warn, info, verbose, debug, or trace).";
             };
 
+            dnsOverTLS = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = "Prefer DNS-over-TLS.";
+            };
+
+            autoRestart = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = "Automatically restart systemd-networkd when things change.";
+            };
+
+            addReverseDomains = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = "Add ip6.arpa and in-addr.arpa search domains.";
+            };
+
+            logTimestamps = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = "Log timestamps (YYYY-MM-DD HH:MM:SS).";
+            };
+
+            multicastDNS = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = "Enable mDNS resolution on the ZeroTier interface.";
+            };
+
+            reconcile = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = "Automatically remove left networks from systemd-networkd configuration.";
+            };
+
             tokenFile = lib.mkOption {
               type = lib.types.str;
               default = "/var/lib/zerotier-one/authtoken.secret";
@@ -176,6 +206,12 @@
               type = lib.types.bool;
               default = false;
               description = "Restore original DNS settings for all managed interfaces on exit.";
+            };
+
+            interfaceWatch = lib.mkOption {
+              type = lib.types.attrs;
+              default = {};
+              description = "Interface watch configuration (mode, retry).";
             };
 
           };
@@ -219,6 +255,7 @@
                     daemon_mode: ${lib.boolToString cfg.daemonMode}
                     poll_interval: "${cfg.pollInterval}"
                     restore_on_exit: ${lib.boolToString cfg.restoreOnExit}
+                    ${lib.optionalString (cfg.interfaceWatch != {}) "interface_watch: ${lib.generators.toYAML {} cfg.interfaceWatch}"}
 
                   ${lib.optionalString (cfg.profiles != {}) ''
                   profiles:
@@ -258,8 +295,6 @@
               wantedBy = [ "multi-user.target" ];
               restartTriggers = [
                 cfg.package
-                config.environment.etc."${lib.removePrefix "/etc/" cfg.configFile}".source
-                # Force restart on any source change by using derivation path
                 "${cfg.package.outPath}"
               ];
               serviceConfig = {
@@ -285,7 +320,6 @@
                       profileArg
                     ]);
                   in args;
-                Type = "oneshot";
                 User = "root";
                 Group = "root";
                 RestartSec = "10s";
