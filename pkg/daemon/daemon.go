@@ -5,8 +5,8 @@
 package daemon
 
 import (
-	"zt-dns-companion/pkg/logging"
-	
+	"zt-dns-companion/pkg/log"
+
 	"context"
 	"fmt"
 	"time"
@@ -17,7 +17,6 @@ type Interface interface {
 	Start() error
 	Stop()
 	IsRunning() bool
-	SetLogPrefix(string)
 }
 
 // Simple implements basic daemon functionality
@@ -27,7 +26,7 @@ type Simple struct {
 	ticker      *time.Ticker
 	stopChan    chan struct{}
 	running     bool
-	logPrefix   string
+	logger      *log.Logger
 }
 
 // NewSimple creates a new daemon instance
@@ -36,6 +35,7 @@ func NewSimple(interval time.Duration, task func(context.Context) error) *Simple
 		interval: interval,
 		task:     task,
 		stopChan: make(chan struct{}),
+		logger:   log.NewScopedLogger("[daemon]", "info"),
 	}
 }
 
@@ -56,21 +56,21 @@ func (d *Simple) Start() error {
 		}()
 
 		// Execute task immediately on start
-		logging.DaemonLogger.Debug("Executing initial task")
+		d.logger.Debug("Executing initial task")
 		if err := d.task(context.Background()); err != nil {
-			logging.DaemonLogger.Error("Initial task execution failed: %v", err)
+			d.logger.Error("Initial task execution failed: %v", err)
 		}
 
 		// Then start the interval-based execution
 		for {
 			select {
 			case <-d.ticker.C:
-				logging.DaemonLogger.Debug("Executing scheduled task")
+				d.logger.Debug("Executing scheduled task")
 				if err := d.task(context.Background()); err != nil {
-					logging.DaemonLogger.Error("Scheduled task execution failed: %v", err)
+					d.logger.Error("Scheduled task execution failed: %v", err)
 				}
 			case <-d.stopChan:
-				logging.DaemonLogger.Debug("Daemon stopping")
+				d.logger.Debug("Daemon stopping")
 				return
 			}
 		}
@@ -90,8 +90,4 @@ func (d *Simple) Stop() {
 
 func (d *Simple) IsRunning() bool {
 	return d.running
-}
-
-func (d *Simple) SetLogPrefix(prefix string) {
-	d.logPrefix = prefix
 }
