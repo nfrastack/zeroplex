@@ -41,7 +41,12 @@ type Flags struct {
 	InterfaceWatchRetryDelay *string
 	LogType                  *string
 	LogFile                  *string
+	Banner                   *bool
 }
+
+// Global variables to hold parsed flags and explicit flags
+var FlagsInstance *Flags
+var ExplicitFlags map[string]bool
 
 // ParseFlags initializes and parses command line flags
 func ParseFlags() (*Flags, map[string]bool) {
@@ -73,6 +78,7 @@ func ParseFlags() (*Flags, map[string]bool) {
 		SelectedProfile:          flag.String("profile", "", "Specify a profile to use from the configuration file. Default: none"),
 		Token:                    flag.String("token", "", "API token to use. Overrides token-file if provided."),
 		TokenFile:                flag.String("token-file", "/var/lib/zerotier-one/authtoken.secret", "Path to the ZeroTier authentication token file. Default: /var/lib/zerotier-one/authtoken.secret"),
+		Banner:                   flag.Bool("banner", true, "Show the startup banner (default: true)"),
 	}
 
 	flag.Parse()
@@ -85,6 +91,10 @@ func ParseFlags() (*Flags, map[string]bool) {
 	flag.Visit(func(f *flag.Flag) {
 		explicitFlags[f.Name] = true
 	})
+
+	// Store in global variables for single initialization
+	FlagsInstance = flags
+	ExplicitFlags = explicitFlags
 
 	return flags, explicitFlags
 }

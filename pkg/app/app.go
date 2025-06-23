@@ -92,8 +92,8 @@ func printVersion(version string) {
 
 // Run starts the application
 func (a *App) Run() error {
-	// Parse flags as early as possible
-	flags, _ := cli.ParseFlags()
+	// Use already-parsed flags from cli.FlagsInstance
+	flags := cli.FlagsInstance
 
 	// Check for help/version flags before anything else
 	if *flags.Help || *flags.HelpShort {
@@ -161,67 +161,29 @@ func (a *App) parseArgsWithBanner() (config.Config, bool, bool, error) {
 	logger := log.NewScopedLogger("[app/args]", "info")
 	logger.Trace("Starting command line argument parsing")
 
-	// Define flags with aliases
-	help := flag.Bool("help", false, "Show help message and exit")
-	helpShort := flag.Bool("h", false, "Show help message and exit (alias)")
-	version := flag.Bool("version", false, "Show version and exit")
-	versionShort := flag.Bool("v", false, "Show version and exit (alias)")
-	configFile := flag.String("config-file", "/etc/zeroplex.yml", "Path to the configuration file")
-	configFileShort := flag.String("config", "", "Path to the configuration file (alias)")
-	configFileC := flag.String("c", "", "Path to the configuration file (alias)")
-	dryRun := flag.Bool("dry-run", false, "Enable dry-run mode. No changes will be made.")
-	mode := flag.String("mode", "", "Mode of operation (networkd, resolved, or auto).")
-	host := flag.String("host", "", "ZeroPlex client host address.")
-	port := flag.Int("port", 0, "ZeroPlex client port number.")
-	logLevel := flag.String("log-level", "", "Set the logging level (error, warn, info, verbose, debug, or trace).")
-	logTimestamps := flag.Bool("log-timestamps", true, "Enable timestamps in logs. Default: true")
-	tokenFile := flag.String("token-file", "", "Path to the ZeroTier authentication token file.")
-	token := flag.String("token", "", "API token to use. Overrides token-file if provided.")
-	banner := flag.Bool("banner", true, "Show the startup banner (default: true)")
-
-	logger.Verbose("Defined command line flags")
-
-	// Daemon-specific flags
-	daemonMode := flag.Bool("daemon", false, "Run in daemon mode with periodic execution (default: true)")
-	pollInterval := flag.String("poll-interval", "", "Interval for polling execution (e.g., 1m, 5m, 1h)")
-	oneshot := flag.Bool("oneshot", false, "Run once and exit (disable daemon mode)")
-
-	// DNS flags
-	addReverseDomains := flag.Bool("add-reverse-domains", false, "Add ip6.arpa and in-addr.arpa search domains.")
-	autoRestart := flag.Bool("auto-restart", false, "Automatically restart systemd-networkd when things change.")
-	dnsOverTLS := flag.Bool("dns-over-tls", false, "Automatically prefer DNS-over-TLS.")
-	multicastDNS := flag.Bool("multicast-dns", false, "Enable Multicast DNS (mDNS).")
-	reconcile := flag.Bool("reconcile", false, "Automatically remove left networks from systemd-networkd configuration")
-
-	// Profile selection
-	selectedProfile := flag.String("profile", "", "Specify a profile to use from the configuration file.")
-
-	logger.Verbose("Defined daemon and DNS specific flags")
-
-	// Parse flags
-	flag.Parse()
-	logger.Debug("Command line flags parsed successfully")
+	flags := cli.FlagsInstance
+	explicitFlags := cli.ExplicitFlags
 
 	// Help/version logic: allow these even as non-root
-	if *help || *helpShort {
+	if *flags.Help || *flags.HelpShort {
 		logger.Trace("Help flag requested, returning early")
 		return config.Config{}, false, false, nil
 	}
-	if *version || *versionShort {
+	if *flags.Version || *flags.VersionShort {
 		logger.Trace("Version flag requested, returning early")
 		return config.Config{}, false, false, fmt.Errorf("version requested")
 	}
 
 	// Determine config file path from any alias
 	finalConfigFile := ""
-	if *configFile != "" {
-		finalConfigFile = *configFile
+	if *flags.ConfigFile != "" {
+		finalConfigFile = *flags.ConfigFile
 	}
-	if *configFileShort != "" {
-		finalConfigFile = *configFileShort
+	if *flags.ConfigFileShort != "" {
+		finalConfigFile = *flags.ConfigFileShort
 	}
-	if *configFileC != "" {
-		finalConfigFile = *configFileC
+	if *flags.ConfigFileC != "" {
+		finalConfigFile = *flags.ConfigFileC
 	}
 
 	logger.Verbose("Loading configuration from file: %s", finalConfigFile)
@@ -229,81 +191,17 @@ func (a *App) parseArgsWithBanner() (config.Config, bool, bool, error) {
 	logger.Debug("Configuration loaded and validated successfully")
 
 	// Handle profile selection
-	if *selectedProfile != "" {
-		if profile, exists := cfg.Profiles[*selectedProfile]; exists {
-			logger.Debug("Applying selected profile: %s", *selectedProfile)
+	if *flags.SelectedProfile != "" {
+		if profile, exists := cfg.Profiles[*flags.SelectedProfile]; exists {
+			logger.Debug("Applying selected profile: %s", *flags.SelectedProfile)
 			cfg.Default = mergeProfiles(cfg.Default, profile)
 		} else {
-			logger.Debug("Selected profile '%s' not found. Using default profile.", *selectedProfile)
+			logger.Debug("Selected profile '%s' not found. Using default profile.", *flags.SelectedProfile)
 		}
 	}
 
 	// Apply explicit flags over config/defaults and merged profile (flags always win)
-	// --- BEGIN: Ensure flags are applied LAST, after all merging ---
-	explicitFlags := make(map[string]bool)
-	flag.Visit(func(f *flag.Flag) {
-		explicitFlags[f.Name] = true
-		logger.Trace("Explicit flag detected: %s = %s", f.Name, f.Value.String())
-	})
-	// Now apply all explicit flags (move this block after profile merging)
-	if explicitFlags["daemon"] {
-		logger.Trace("Applying explicit daemon flag: %t", *daemonMode)
-		cfg.Default.Daemon.Enabled = *daemonMode
-	}
-	if explicitFlags["poll-interval"] {
-		logger.Trace("Applying explicit poll-interval flag: %s", *pollInterval)
-		cfg.Default.Daemon.PollInterval = *pollInterval
-	}
-	if explicitFlags["oneshot"] && *oneshot {
-		cfg.Default.Daemon.Enabled = false
-		logger.Debug("Oneshot mode enabled - daemon mode disabled")
-	}
-	if explicitFlags["mode"] {
-		logger.Trace("Applying explicit mode flag: %s", *mode)
-		cfg.Default.Mode = *mode
-	}
-	if explicitFlags["host"] {
-		logger.Trace("Applying explicit host flag: %s", *host)
-		cfg.Default.Client.Host = *host
-	}
-	if explicitFlags["port"] {
-		logger.Trace("Applying explicit port flag: %d", *port)
-		cfg.Default.Client.Port = *port
-	}
-	if explicitFlags["log-level"] {
-		logger.Trace("Applying explicit log-level flag: %s", *logLevel)
-		cfg.Default.Log.Level = *logLevel
-	}
-	if explicitFlags["log-timestamps"] {
-		logger.Trace("Applying explicit log-timestamps flag: %t", *logTimestamps)
-		cfg.Default.Log.Timestamps = *logTimestamps
-	}
-	if explicitFlags["token-file"] {
-		logger.Trace("Applying explicit token-file flag: %s", *tokenFile)
-		cfg.Default.Client.TokenFile = *tokenFile
-	}
-	_ = token // Suppress unused variable warning
-	if explicitFlags["add-reverse-domains"] {
-		logger.Trace("Applying explicit add-reverse-domains flag: %t", *addReverseDomains)
-		cfg.Default.Features.AddReverseDomains = *addReverseDomains
-	}
-	if explicitFlags["auto-restart"] {
-		logger.Trace("Applying explicit auto-restart flag: %t", *autoRestart)
-		cfg.Default.Networkd.AutoRestart = *autoRestart
-	}
-	if explicitFlags["dns-over-tls"] {
-		logger.Trace("Applying explicit dns-over-tls flag: %t", *dnsOverTLS)
-		cfg.Default.Features.DNSOverTLS = *dnsOverTLS
-	}
-	if explicitFlags["multicast-dns"] {
-		logger.Trace("Applying explicit multicast-dns flag: %t", *multicastDNS)
-		cfg.Default.Features.MulticastDNS = *multicastDNS
-	}
-	if explicitFlags["reconcile"] {
-		logger.Trace("Applying explicit reconcile flag: %t", *reconcile)
-		cfg.Default.Networkd.Reconcile = *reconcile
-	}
-	// --- END: Ensure flags are applied LAST ---
+	cli.ApplyExplicitFlags(&cfg, flags, explicitFlags)
 
 	// Validate daemon configuration
 	if cfg.Default.Daemon.Enabled {
@@ -352,7 +250,7 @@ func (a *App) parseArgsWithBanner() (config.Config, bool, bool, error) {
 	logger.Trace("Final configuration - Mode: %s, LogLevel: %s, DaemonMode: %t, PollInterval: %s",
 		cfg.Default.Mode, cfg.Default.Log.Level, cfg.Default.Daemon.Enabled, cfg.Default.Daemon.PollInterval)
 
-	return cfg, *dryRun, *banner, nil
+	return cfg, *flags.DryRun, *flags.Banner, nil
 }
 
 // mergeProfiles merges a selected profile with the default profile
@@ -421,8 +319,11 @@ func mergeProfiles(defaultProfile, selectedProfile config.Profile) config.Profil
 }
 
 func init() {
+	flags := cli.FlagsInstance
 	flag.Usage = func() {
-		showStartupBanner("info", false, Version)
+		if flags != nil && *flags.Banner {
+			showStartupBanner("info", false, Version)
+		}
 		printCopyrightAndLicense()
 		// Only print version once
 		fmt.Fprintf(flag.CommandLine.Output(), "ZeroPlex version: %s\n\n", getVersionString())
