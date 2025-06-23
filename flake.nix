@@ -327,9 +327,10 @@ default:
     auto_restart: ${if cfg.networkd.auto_restart then "true" else "false"}
     reconcile: ${if cfg.networkd.reconcile then "true" else "false"}
 
-${lib.concatMapStringsSep "\n" (name: profile: ''${name}:
+${lib.concatStringsSep "\n" (lib.mapAttrsToList (name: profile: ''
+${name}:
 ${lib.generators.toYAML {} profile}
-'') (lib.attrNames cfg.profiles) (lib.attrValues cfg.profiles)}EOC
+'') cfg.profiles)}EOC
                 chmod 0600 ${cfg.configFile}
               '';
               deps = [];
@@ -348,11 +349,13 @@ ${lib.generators.toYAML {} profile}
                     configFileArg = "--config-file ${cfg.configFile}";
                     profileArg = if cfg.profile != "" then "--profile ${cfg.profile}" else "";
                     logTimestampsArg = "--log-timestamps=false";
+                    bannerArg = "--banner=false";
                     args = lib.strings.concatStringsSep " " (lib.lists.filter (s: s != "") [
                       "${cfg.package}/bin/zeroflex"
                       configFileArg
                       profileArg
                       logTimestampsArg
+                      bannerArg
                     ]);
                   in args;
                 User = "root";

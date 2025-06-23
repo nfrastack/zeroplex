@@ -7,9 +7,10 @@ package utils
 import (
 	"time"
 
+	"zeroflex/pkg/log"
+
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
-	"zeroflex/pkg/log"
 )
 
 // InterfaceEventType represents the type of interface event
@@ -123,4 +124,50 @@ func PollInterfaces(interval time.Duration, callback func(InterfaceEvent), stopC
 			}
 		}
 	}
+}
+
+// DebouncedWatchInterfacesNetlink wraps WatchInterfacesNetlink with debounce/batching.
+func DebouncedWatchInterfacesNetlink(callback func([]InterfaceEvent), stopCh <-chan struct{}, logLevel string, debounceWindow time.Duration) error {
+	logger := log.NewScopedLogger("[interface_watch]", logLevel)
+	eventCh := make(chan InterfaceEvent, 32)
+
+	// Start the raw watcher
+	err := WatchInterfacesNetlink(func(ev InterfaceEvent) {
+		eventCh <- ev
+	}, stopCh, logLevel)
+	if err != nil {
+		return err
+	}
+
+	go func() {
+		var batch []InterfaceEvent
+		var timer *time.Timer
+		for {
+			select {
+			case ev := <-eventCh:
+				batch = append(batch, ev)
+				if timer == nil {
+					timer = time.NewTimer(debounceWindow)
+				} else {
+					timer.Reset(debounceWindow)
+				}
+			case <-stopCh:
+				logger.Verbose("Debounced watcher stopped")
+				return
+			case <-func() <-chan time.Time {
+				if timer != nil {
+					return timer.C
+				}
+				return make(chan time.Time)
+			}():
+				if len(batch) > 0 {
+					logger.Debug("Debounced batch: %d interface events", len(batch))
+					callback(batch)
+					batch = nil
+				}
+				timer = nil
+			}
+		}
+	}()
+	return nil
 }
