@@ -337,7 +337,7 @@ ${lib.generators.toYAML {} profile}
             };
 
             systemd.services.zeroplex = lib.mkIf cfg.service.enable {
-              description = "ZeroTier DNS Companion";
+              description = "ZeroPlex - ZeroTier DNS Manager";
               wantedBy = [ "multi-user.target" ];
               restartTriggers = [
                 cfg.package
