@@ -1,25 +1,32 @@
-## 1.1.0-beta 2025-06-20 <dave at tiredofit dot ca>
+## 2.0.0 2025-06-23 <code at nfrastack dot com>
+
+This brings a whole new rewrite to the application, including a project name change. 
 
 ### Added
+- Broke out application into modular packages instead of a single main.go file.
+  - Refactored codebase into modular packages for better maintainability
+    - New package structure:
+      - `pkg/config` - Configuration management and validation
+      - `pkg/logger` - Centralized logging functionality
+      - `pkg/client` - ZeroTier API client handling
+      - `pkg/utils` - Common utility functions
+      - `pkg/filters` - Network filtering logic
+      - `pkg/dns` - DNS-related functionality
+      - `pkg/modes` - Network mode handlers (networkd, resolved)
+- BREAKING - Switched configuration format from TOML to YAML.
+- BREAKING - Refactored configuration to use a modern, nested structure (e.g., `log.level`, `daemon.enabled`, `client.host`, `features.dns_over_tls`, etc.).
+- Added startup banner for application launch.
+- Introduced daemon mode for background operation and configurable Poll Interval to check ZeroTier API
+- New config option and CLI flag: `restore_on_exit` / `--restore-on-exit` to restore original DNS settings for all managed interfaces on exit (SIGINT/shutdown).
+- Added support for logging to file/console/both via `log.type` and `log.file` in config and CLI flags.
+- Improved logging: now supports multiple levels (`info`, `verbose` (default), `error`, `debug`, `trace`).
+- Added interface watching modes (`event`, `poll`, `off`) with to trigger settings change outside of daemon polling Interval with batching/debouncing of events.
+- Improved systemd-resolved support: mDNS and DNS-over-TLS are now actually set via `resolvectl` for each managed interface, matching the behavior of systemd-networkd mode.
+- Rewrote filter configuration for clarity and flexibility.
+- Improved DNS cleanup: now uses `resolvectl revert <interface>` to reset all temporary DNS settings for interfaces on removal or exit
+- Tonnes of other little improvements and QoL improvements
 
-- Refactored codebase into modular packages for better maintainability
-- New package structure:
-  - `pkg/config` - Configuration management and validation
-  - `pkg/logger` - Centralized logging functionality
-  - `pkg/client` - ZeroTier API client handling
-  - `pkg/utils` - Common utility functions
-  - `pkg/filters` - Network filtering logic
-  - `pkg/dns` - DNS-related functionality
-  - `pkg/modes` - Network mode handlers (networkd, resolved)
-
-### Changed
-
-- Broke apart monolithic main.go into logical packages
-- Improved code organization and separation of concerns
-- Enhanced error handling consistency across packages
-- Standardized logging interface throughout application
-
-## 1.0.0 2025-05-08 <dave at tiredofit dot ca>
+## 1.0.0 2025-05-08 <code at nfrastack dot com>
 
 Inaugral release of the ZT DNS Companion!
 This tool will augment the amazing capabilities of working with the ZeroTier one on a Linux headless or desktop system.

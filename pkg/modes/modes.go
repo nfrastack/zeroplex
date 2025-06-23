@@ -281,6 +281,10 @@ func RunResolvedMode(networks *service.GetNetworksResponse, addReverseDomains, d
 
 			searchKeys := []string{}
 			for key := range searchDomains {
+				// Ensure tilde prefix for systemd-resolved split DNS
+				if !strings.HasPrefix(key, "~") {
+					key = "~" + key
+				}
 				searchKeys = append(searchKeys, key)
 			}
 			sort.Strings(searchKeys)

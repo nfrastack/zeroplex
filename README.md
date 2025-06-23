@@ -1,14 +1,14 @@
-# ZT DNS Companion
+# ZeroPlex
 
-This tool allows you to query your [ZeroTier](https://zerotier.com) networks and create per-interface DNS settings for name resolution. Whether you use a managed or self-hosted controller, you can configure at the controller level [custom DNS server and search domain](https://docs.zerotier.com/dns-management) downstream to the client. Windows, macOS, Android, and iOS all have the capability of auto-configuring their systems to utilize this setting. If you are running a Linux host, you need to perform extra configuration due to the many types of network tools available. This utility aims to automate that work.
+Automate per-interface DNS configuration for [ZeroTier](https://zerotier.com) networks on Linux. ZeroPlex detects DNS assignments from your ZeroTier controller and applies them to your system using either `systemd-networkd` or `systemd-resolved`, supporting both server and desktop environments. It is designed for reliability, automation, and seamless integration with modern Linux workflows.
 
 > **Commercial/Enterprise Users:**
 >
-> This tool is free to use for all users. However, if you are using ZT DNS Companion in a commercial or enterprise environment, please consider purchasing a license to support ongoing development and receive priority support. There is no charge to use the tool and no differences in binaries, but a license purchase helps ensure continued improvements and faster response times for your organization. If this is useful to your organization and you wish to support the project [please reach out](mailto:code+zt@nfrastack.com).
+> This tool is free to use for all users. However, if you are using ZeroPlex in a commercial or enterprise environment, please consider purchasing a license to support ongoing development and receive priority support. There is no charge to use the tool and no differences in binaries, but a license purchase helps ensure continued improvements and faster response times for your organization. If this is useful to your organization and you wish to support the project [please reach out](mailto:code+zp@nfrastack.com).
 
 ## Disclaimer
 
-ZT DNS Companion is an independent project and is not affiliated with, endorsed by, or sponsored by ZeroTier, Inc. Any references to ZeroTier are solely for the purpose of describing the functionality of this tool, which is designed to enhance the usage of the ZeroTier product. This tool is provided as-is and is not an official ZeroTier product. I'm also not a lawyer, so if you represent commercial interests of companies above and have concerns, let's talk.
+ZeroPlex is an independent project and is not affiliated with, endorsed by, or sponsored by ZeroTier, Inc. Any references to ZeroTier are solely for the purpose of describing the functionality of this tool, which is designed to enhance the usage of the ZeroTier product. This tool is provided as-is and is not an official ZeroTier product. I'm also not a lawyer, so if you represent commercial interests of companies above and have concerns, let's talk.
 
 ## Maintainer
 
@@ -16,243 +16,211 @@ nfrastack <code@nfrastack.com>
 
 ## Table of Contents
 
-- [About](#about)
 - [Disclaimer](#disclaimer)
 - [Maintainer](#maintainer)
-- [Table of Contents](#table-of-contents)
 - [Prerequisites and Assumptions](#prerequisites-and-assumptions)
-- [Configuration](#configuration)
-  - [Quick Start](#quick-start)
-  - [Command Line Arguments](#command-line-arguments)
-  - [Filtering Networks and Interfaces](#filtering-networks-and-interfaces)
-    - [Examples](#examples)
-  - [Configuration File](#configuration-file)
-    - [Example YAML Configuration File](#example-yaml-configuration-file)
-    - [Using Profiles](#using-profiles)
-- [Running in Background](#running-in-background)
 - [Installing](#installing)
   - [From Source](#from-source)
   - [Precompiled Binaries](#precompiled-binaries)
-    - [Supported Architectures](#supported-architectures)
-    - [How to Download](#how-to-download)
-    - [How to Use](#how-to-use)
   - [Distributions](#distributions)
-    - [NixOS](#nixos)
+- [Configuration](#configuration)
+  - [Overview](#overview)
+  - [Command Line Flags](#command-line-flags)
+  - [Profiles](#profiles)
+- [Running as a Service](#running-as-a-service)
 - [Support](#support)
-  - [Usage](#usage)
-  - [Bugfixes](#bugfixes)
-  - [Feature Requests](#feature-requests)
-  - [Updates](#updates)
 - [References](#references)
 - [License](#license)
 
 ## Prerequisites and Assumptions
 
-- Assumes you have the ZeroTier-One client installed and are connected to one or more networks.
+- ZeroTier-One client installed and connected to one or more networks.
 - An available DNS server to serve records.
-- Utilizing either:
-  - `systemd-networkd`, a system service that manages network configurations, primarily for servers and headless Linux systems.
-  - `systemd-resolved`, a system service that provides network name resolution for local applications on Linux systems. It works alongside [NetworkManager](https://wiki.archlinux.org/title/NetworkManager#systemd-resolved), [ConnMan](https://wiki.archlinux.org/title/ConnMan#Using_systemd-resolved), and [`iwd`](https://wiki.archlinux.org/title/Iwd#Select_DNS_manager), making this suitable for those using desktop Linux.
-
-## Configuration
-
-### Quick Start
-
-Run `zt-dns-companion` as `root` with appropriate command-line arguments. If you are connected to ZeroTier networks that have DNS assignments, depending on which `-mode` you are running, it will:
-
-- `networkd`: Populate files in `/etc/systemd/network/99-<network-name>`. It will then restart `systemd-networkd` for you if things have changed.
-- `resolved`: Populate search domains and DNS server entries with `resolvectl` if entries don't already exist.
-
-### Command Line Arguments
-
-To change the way the tool operates, you can pass various arguments via the command line.
-
-- `-config-file`: Specify a custom configuration file. By default it looks for existence at `/etc/zt-dns-companion.yaml` If the file does not exist and this argument, it will be autogenerated with default values and any other command-line arguments passed to the binary.
-- `-profile`: Specify the profile to use from the configuration file. Defaults to `default`.
-- `-version`: Print the version and exit.
-- `-help`: Show help message and exit.
-- `-log-level`: Set the logging level (`info` or `debug`).
-- `-log-timestamps`: Enable timestamps in logs. Default: `false`.
-- `-dry-run`: Simulate changes without applying them.
-- `-mode`: Set the mode of operation (`auto` `networkd` or `resolved`) (default: autodetected).
-- `-host`: ZeroTier client host address (default: `http://localhost`).
-- `-port`: ZeroTier client port number (default: `9993`).
-- `-token-file`: Path to the ZeroTier authentication token file (default: `/var/lib/zerotier-one/authtoken.secret`).
-- `-token`: ZeroTier authentication token (overrides `-token-file` if provided).
-- `-add-reverse-domains`: Add reverse DNS search domains (e.g., `in-addr.arpa`, `ip6.arpa`) based on assigned IPs (default: false).
-- `-auto-restart`: (networkd) Automatically restart `systemd-networkd` when changes are detected (default: true).
-- `-dns-over-tls`: (networkd) Enable DNS-over-TLS for supported configurations (default: false).
-- `-multicast-dns`: (networkd) Enable multicast DNS (mDNS) for ZeroTier interfaces (default: false).
-- `-reconcile`: (networkd) Remove unused network files when networks are no longer active (default: true).
-- `-restore-on-exit`: Restore original DNS settings for all managed interfaces on exit (default: false).
-
-### Filtering Networks and Interfaces
-
-ZT DNS Companion provides a unified filtering system to control which networks and interfaces are processed:
-
-- `-filter-type`: Type of filter to apply. Options are:
-  - `interface` - Filter by interface names
-  - `network` - Filter by network names
-  - `network_id` - Filter by network IDs
-  - `none` - No filtering (process all)
-
-- `-filter-include`: Comma-separated list of items to include based on filter-type. Empty or special values (`any`, `all`, `ignore`) mean "include all".
-
-- `-filter-exclude`: Comma-separated list of items to exclude based on filter-type. Empty or special values (`none`, `ignore`) mean "exclude none".
-
-The filter system ensures that only one type of filtering is active at a time to prevent conflicts.
-
-#### Examples
-
-- Filter by interface names, including only specific interfaces:
-
-  ```bash
-  ./zt-dns-companion -filter-type interface -filter-include=zt12345678,zt87654321
-  ```
-
-- Filter by network names, excluding specific networks:
-
-  ```bash
-  ./zt-dns-companion -filter-type network -filter-exclude=unwanted_network1,unwanted_network2
-  ```
-
-- Filter by network IDs:
-
-  ```bash
-  ./zt-dns-companion -filter-type network_id -filter-include=a1b2c3d4,d4c3b2a1
-  ```
-
-- Process all networks without filtering:
-
-  ```bash
-  ./zt-dns-companion -filter-type none
-  ```
-
-- Using special values to explicitly include all or exclude none:
-
-  ```bash
-  ./zt-dns-companion -filter-type interface -filter-include=any -filter-exclude=none
-  ```
-
-### Configuration File
-
-ZT DNS Companion supports both TOML and YAML configuration files. The format is auto-detected based on the file extension:
-
-- `.yaml` or `.yml` files are parsed as YAML
-- `.toml` or `.conf` files are parsed as TOML
-- Files without extensions default to TOML format
-
-By default, it looks for a configuration file at `/etc/zt-dns-companion.conf`. You can specify a custom configuration file using the `-config-file` command-line argument.
-
-#### Example YAML Configuration File (Recommended)
-
-YAML provides a cleaner, more readable syntax. Here's an example YAML configuration:
-
-```yaml
-default:
-  mode: "auto"
-  log_level: "info"
-  host: "http://localhost"
-  port: 9993
-  dns_over_tls: false
-  auto_restart: true
-  add_reverse_domains: false
-  filter_type: "none"
-  filter_include: []
-  filter_exclude: []
-  daemon_mode: false
-  daemon_interval: "1m"
-  restore_on_exit: false  # Restore DNS for all managed interfaces on exit
-
-profiles:
-  # Development profile with daemon mode
-  development:
-    log_level: "debug"
-    log_timestamps: true
-    daemon_mode: true
-    daemon_interval: "30s"
-    filter_type: "interface"
-    filter_include:
-      - "zt12345678"
-      - "zt87654321"
-    restore_on_exit: false
-
-  # Production profile
-  production:
-    mode: "networkd"
-    daemon_mode: true
-    daemon_interval: "5m"
-    filter_type: "network"
-    filter_include:
-      - "prod_network"
-      - "mgmt_network"
-    restore_on_exit: false
-```
-
-#### Using Profiles
-
-- The `default` profile contains global settings.
-- Additional profiles can be defined under `[profiles.<name>]` for specific configuration scenarios.
-- You can switch between profiles using the `-profile` command-line argument.
-
-## Running in Background
-
-This should be run as a systemd service and timer as it only bases its information on the present moment. It will not monitor if you change DNS server settings on your controller, and if using `resolved` mode, it will not survive a reboot. See [contrib/systemd](contrib/systemd) for examples of units and timers that can be implemented into your distribution to monitor all or individual interfaces.
+- Linux system using either:
+  - `systemd-networkd` (for servers/headless)
+  - `systemd-resolved` (for desktops, works with NetworkManager, ConnMan, iwd, etc.)
 
 ## Installing
 
 ### From Source
 
-Clone this repository and compile with [GoLang 1.21 or later](https://golang.org):
-
 ```bash
-go build ./cmd/zt-dns-companion/
+go build ./cmd/zeroplex/
 ```
 
 ### Precompiled Binaries
 
-Precompiled binaries are available for download from the [GitHub Releases](https://github.com/nfrastack/zt-dns-companion/releases) page. These binaries are created only for tagged releases.
-
-#### Supported Architectures
-
-- `x86_64` (64-bit Linux)
-- `aarch64` (ARM 64-bit Linux)
-
-#### How to Download
-
-1. Visit the [Releases](https://github.com/nfrastack/zt-dns-companion/releases) page.
-2. Locate the release you want to download.
-3. Download the binary for your architecture:
-   - `zt-dns-companion_x86_64` for 64-bit Linux.
-   - `zt-dns-companion_aarch64` for ARM 64-bit Linux.
-
-#### How to Use
-
-1. Make the binary executable:
-
-   ```bash
-   chmod +x zt-dns-companion-<architecture>
-   ```
-
-2. Move it to a directory in your `PATH` (e.g., `/usr/local/bin`):
-
-   ```bash
-   sudo mv zt-dns-companion_<architecture> /usr/local/bin/zt-dns-companion
-   ```
-
-3. Run the binary:
-
-   ```bash
-   zt-dns-companion --help
-   ```
+Download from [GitHub Releases](https://github.com/nfrastack/zeroplex/releases).
 
 ### Distributions
 
 #### NixOS
 
-See [contrib/nixos](contrib/nixos) for installation instructions and a module that can be used to configure.
+See [contrib/nixos](contrib/nixos) for installation instructions and NixOS module usage.
+
+---
+
+## Configuration
+
+### Overview
+
+ZeroPlex now uses a modern, nested YAML configuration structure. All options are grouped under logical keys (e.g., `log.level`, `daemon.enabled`, `client.host`, `features.dns_over_tls`).
+
+**Configuration file search order:**
+- If you specify a config file with `-config-file`, that file is used.
+- If not specified, ZeroPlex will look for `zeroplex.yml` in the current working directory.
+- If not found, it will look for `/etc/zeroplex.yml`.
+- If no config file is found, ZeroPlex will print a warning and proceed with only command-line arguments and built-in defaults. All CLI flags will still work and take precedence.
+
+- See the sample config (`contrib/config/zeroplex.yml.sample`) for a full example.
+- All code, CLI flags, and documentation have been updated to use the new nested structure.
+- Old flat config fields are no longer supported.
+
+### Command Line Flags
+
+ZeroPlex can be configured via command line flags or a YAML configuration file. Command line flags always override config file values. Profiles allow you to maintain multiple configuration sets in a single file.
+
+> **Tip:** For boolean flags (such as `-dns-over-tls`, `-daemon`, etc.), you can explicitly set them to true or false using `-flag=true` or `-flag=false`. For example:
+>
+> ```bash
+> zeroplex -dns-over-tls=false -multicast-dns=true
+> ```
+> This will override any value from the config file or defaults.
+
+| Flag                            | Description                                                              | Default                                  |
+| ------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------- |
+| **General Options**             |                                                                          |                                          |
+| `-config-file` / `-config`/`-c` | Path to YAML configuration file                                          | `/etc/zeroplex.yml`                      |
+| `-profile`                      | Profile to use from configuration file (must match a key in `profiles:`) | `default`                                |
+| `-mode`                         | Backend mode: `auto`, `networkd`, or `resolved`                          | `auto`                                   |
+| `-daemon`                       | Run in daemon mode (true/false)                                          | `true`                                   |
+| `-poll-interval`                | Interval for polling execution (e.g., 1m, 5m, 1h)                        | `1m`                                     |
+| `-dry-run`                      | Enable dry-run mode. No changes will be made.                            | `false`                                  |
+|                                 |                                                                          |                                          |
+| **Logging Options**             |                                                                          |                                          |
+| `-log-level`                    | Logging level: `info`, `debug`, `verbose`, `trace`                       | `info`                                   |
+| `-log-type`                     | Logging output type: `console`, `file`, `both`                           | `console`                                |
+| `-log-file`                     | Log file path (if using file or both)                                    | `/var/log/zeroplex.log`                  |
+| `-log-timestamps`               | Enable timestamps in logs                                                | `false`                                  |
+|                                 |                                                                          |                                          |
+| **Features**                    |                                                                          |                                          |
+| `-dns-over-tls`                 | Prefer DNS-over-TLS                                                      | `false`                                  |
+| `-add-reverse-domains`          | Add ip6.arpa and in-addr.arpa search domains                             | `false`                                  |
+| `-multicast-dns`                | Enable Multicast DNS (mDNS)                                              | `false`                                  |
+| `-restore-on-exit`              | Restore DNS for all managed interfaces on exit                           | `false`                                  |
+|                                 |                                                                          |                                          |
+| **Networkd Options**            |                                                                          |                                          |
+| `-auto-restart`                 | Automatically restart systemd-networkd when things change                | `true`                                   |
+| `-reconcile`                    | Remove left networks from systemd-networkd configuration                 | `true`                                   |
+|                                 |                                                                          |                                          |
+| **Interface Watch Options**     |                                                                          |                                          |
+| `-interface-watch-mode`         | Interface watch mode: `event`, `poll`, `off`                             | `off`                                    |
+| `-interface-watch-retry-count`  | Number of retries after interface event                                  | `10`                                     |
+| `-interface-watch-retry-delay`  | Delay between retries (duration string)                                  | `10s`                                    |
+|                                 |                                                                          |                                          |
+| **ZeroTier Client Options**     |                                                                          |                                          |
+| `-host`                         | ZeroTier client host address                                             | `http://localhost`                       |
+| `-port`                         | ZeroTier client port                                                     | `9993`                                   |
+| `-token-file`                   | Path to ZeroTier API token file                                          | `/var/lib/zerotier-one/authtoken.secret` |
+| `-token`                        | ZeroTier API token (overrides `-token-file`)                             |                                          |
+
+> **Note:**
+> Flags always override config file values.
+
+### Profiles
+
+Profiles allow you to define multiple configuration sets in a single YAML file under the `profiles:` key. Select a profile using the `-profile` flag or the `profile` config option. Each profile uses the same nested structure as the default config.
+
+**Example:**
+
+```yaml
+default:
+  mode: "auto"
+  log:
+    level: "info"
+    timestamps: false
+    type: "console"
+    file: "/var/log/zeroplex.log"
+  daemon:
+    enabled: false
+    poll_interval: "1m"
+  client:
+    host: "http://localhost"
+    port: 9993
+    token_file: "/var/lib/zerotier-one/authtoken.secret"
+  features:
+    dns_over_tls: false
+    auto_restart: true
+    add_reverse_domains: false
+    multicast_dns: false
+    restore_on_exit: false
+  networkd:
+    reconcile: true
+  interface_watch:
+    mode: "event"
+    retry:
+      count: 3
+      delay: "2s"
+
+profiles:
+  development:
+    log:
+      level: "debug"
+      timestamps: true
+    daemon:
+      enabled: true
+      poll_interval: "30s"
+    interface_watch:
+      mode: "event"
+      retry:
+        count: 3
+        delay: "2s"
+    restore_on_exit: false
+    filters:
+      - type: "interface"
+        conditions:
+          - value: "zt12345678"
+            logic: "or"
+          - value: "zt87654321"
+            logic: "or"
+
+  production:
+    mode: "networkd"
+    daemon:
+      enabled: true
+      poll_interval: "5m"
+    interface_watch:
+      mode: "poll"
+      retry:
+        count: 2
+        delay: "1s"
+    restore_on_exit: false
+    filters:
+      - type: "network"
+        conditions:
+          - value: "prod_network"
+            logic: "or"
+          - value: "mgmt_network"
+            logic: "or"
+      - type: "network"
+        operation: "AND"
+        negate: true
+        conditions:
+          - value: "test_network"
+```
+
+---
+
+## Running as a Service
+
+ZeroPlex is designed to run as a background service. See [contrib/systemd](contrib/systemd) for example systemd units.
+A NixOS module is also available for declarative configuration ([contrib/nixos](contrib/nixos)).
 
 ## Support
+
+### Implementation
+
+[Contact us](mailto:code+zeroplex@nfrastack.com) for rates.
 
 ### Usage
 
@@ -264,18 +232,18 @@ See [contrib/nixos](contrib/nixos) for installation instructions and a module th
 
 ### Feature Requests
 
-- Feel free to submit a feature request; however, there is no guarantee that it will be added or at what timeline.
+- Feel free to submit a feature request; however, there is no guarantee that it will be added or at what timeline.  [Contact us](mailto:code+zp@nfrastack.com) for custom development.
 
 ### Updates
 
-- Best effort to track upstream dependency changes, with more priority if I am actively using the tool.
+- Best effort to track upstream dependency changes, with more priority if the tool is actively used on our end.
 
 ## References
 
-- [zerotier-systemd-manager](https://github.com/zerotier/zerotier-systemd-manager) - Original forked project by Erik Hollensbe <github@hollensbe.org>.
-- [zerotier-resolved](https://github.com/twisteroidambassador/zerotier-resolved) - Adds `resolvectl` settings via a Python script.
-- [zeronsd](https://github.com/zerotier/zeronsd) - DNS server that maps member IDs and names to IP addresses on a ZeroTier network.
+- [zerotier-systemd-manager](https://github.com/zerotier/zerotier-systemd-manager)
+- [zerotier-resolved](https://github.com/twisteroidambassador/zerotier-resolved)
+- [zeronsd](https://github.com/zerotier/zeronsd)
 
 ## License
 
-BSD 3-Clause. See [LICENSE](LICENSE) for more details.
+BSD 3-Clause. See [LICENSE](LICENSE) for details.
