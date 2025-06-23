@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 )
 
 var Version = "development"
@@ -32,13 +31,35 @@ func New() *App {
 func ValidateAndLoadConfig(configFile string) config.Config {
 	logger := log.NewScopedLogger("[config]", "info")
 	logger.Trace("ValidateAndLoadConfig() started with file: %s", configFile)
-	logger.Debug("Loading configuration from file: %s", configFile)
-	cfg := config.LoadConfiguration(configFile)
 
-	err := config.ValidateConfig(&cfg)
-	if err != nil {
-		logger.Debug("Configuration validation failed: %v", err)
-		utils.ErrorHandler("Validating configuration", err, true)
+	// Enhanced config file search logic
+	tryFiles := []string{}
+	if configFile != "" {
+		tryFiles = append(tryFiles, configFile)
+	} else {
+		tryFiles = append(tryFiles, "./zeroflex.yml", "/etc/zeroflex.yml")
+	}
+
+	var cfg config.Config
+	var found bool
+	for _, f := range tryFiles {
+		if fi, err := os.Stat(f); err == nil && !fi.IsDir() {
+			logger.Debug("Loading configuration from file: %s", f)
+			cfg = config.LoadConfiguration(f)
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		logger.Warn("No configuration file found (tried: %v). Proceeding with defaults and CLI flags only.", tryFiles)
+		cfg = config.Config{} // Use empty config; CLI flags will apply
+	} else {
+		err := config.ValidateConfig(&cfg)
+		if err != nil {
+			logger.Debug("Configuration validation failed: %v", err)
+			utils.ErrorHandler("Validating configuration", err, true)
+		}
 	}
 	return cfg
 }
@@ -55,17 +76,32 @@ func showStartupBanner(logLevel string, showTimestamps bool, version string) {
 	fmt.Println()
 }
 
+func printCopyrightAndLicense() {
+	fmt.Println("© 2025 Nfrastack https://nfrastack.com - BSD-3-Clause License")
+}
+
+func printStartupVersion(version string) {
+	fmt.Printf("Starting ZeroFlex version: %s\n", version)
+	printCopyrightAndLicense()
+}
+
+func printVersion(version string) {
+	fmt.Printf("ZeroFlex version: %s | © 2025 Nfrastack https://nfrastack.com - BSD-3-Clause License\n", version)
+}
+
 // Run starts the application
 func (a *App) Run() error {
-	cfg, dryRun, help, err := a.parseArgs()
+	// Root check FIRST, before any config file loading
+	if os.Geteuid() != 0 {
+		printVersion(getVersionString())
+		fmt.Fprintln(os.Stderr, "This application must be run as root. Exiting.")
+		os.Exit(1)
+	}
+
+	cfg, dryRun, help, showBanner, err := a.parseArgsWithBanner()
 	if err != nil {
 		if err.Error() == "version requested" {
-			if cfg.Default.Log.Timestamps {
-				timestamp := time.Now().Format("2006-01-02 15:04:05")
-				fmt.Printf("%s ZeroFlex version: %s\n", timestamp, getVersionString())
-			} else {
-				fmt.Printf("ZeroFlex version: %s\n", getVersionString())
-			}
+			printVersion(getVersionString())
 			return nil
 		}
 		return err
@@ -74,23 +110,10 @@ func (a *App) Run() error {
 		printHelpWithVersion(cfg.Default.Log.Timestamps)
 		return nil
 	}
-	showStartupBanner(cfg.Default.Log.Level, cfg.Default.Log.Timestamps, "")
-	if os.Geteuid() != 0 {
-		if cfg.Default.Log.Timestamps {
-			timestamp := time.Now().Format("2006-01-02 15:04:05")
-			fmt.Printf("%s ZeroFlex version: %s\n", timestamp, getVersionString())
-		} else {
-			fmt.Printf("ZeroFlex version: %s\n", getVersionString())
-		}
-		fmt.Fprintln(os.Stderr, "This application must be run as root. Exiting.")
-		os.Exit(1)
+	if showBanner {
+		showStartupBanner(cfg.Default.Log.Level, cfg.Default.Log.Timestamps, "")
 	}
-	if cfg.Default.Log.Timestamps {
-		timestamp := time.Now().Format("2006-01-02 15:04:05")
-		fmt.Printf("%s ZeroFlex version: %s\n", timestamp, getVersionString())
-	} else {
-		fmt.Printf("ZeroFlex version: %s\n", getVersionString())
-	}
+	printStartupVersion(getVersionString())
 	// Perform mode auto-detection before creating the runner
 	if cfg.Default.Mode == "auto" {
 		r := runner.New(cfg, dryRun)
@@ -117,22 +140,17 @@ func getVersionString() string {
 }
 
 func printHelpWithVersion(showTimestamps bool) {
-	if showTimestamps {
-		timestamp := time.Now().Format("2006-01-02 15:04:05")
-		fmt.Printf("%s ZeroFlex version: %s\n", timestamp, getVersionString())
-	} else {
-		fmt.Printf("ZeroFlex version: %s\n", getVersionString())
-	}
+	printVersion(getVersionString())
 	fmt.Println()
-	flag.PrintDefaults()
+	flag.Usage() // Use the custom grouped help output
 }
 
 func printHelp() {
 	// Deprecated: replaced by printHelpWithVersion
 }
 
-// parseArgs parses command line arguments and loads configuration
-func (a *App) parseArgs() (config.Config, bool, bool, error) {
+// parseArgsWithBanner parses command line arguments and loads configuration, returning showBanner
+func (a *App) parseArgsWithBanner() (config.Config, bool, bool, bool, error) {
 	logger := log.NewScopedLogger("[app/args]", "info")
 	logger.Trace("Starting command line argument parsing")
 
@@ -141,7 +159,7 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 	helpShort := flag.Bool("h", false, "Show help message and exit (alias)")
 	version := flag.Bool("version", false, "Show version and exit")
 	versionShort := flag.Bool("v", false, "Show version and exit (alias)")
-	configFile := flag.String("config-file", "/etc/zeroflex.yaml", "Path to the configuration file")
+	configFile := flag.String("config-file", "/etc/zeroflex.yml", "Path to the configuration file")
 	configFileShort := flag.String("config", "", "Path to the configuration file (alias)")
 	configFileC := flag.String("c", "", "Path to the configuration file (alias)")
 	dryRun := flag.Bool("dry-run", false, "Enable dry-run mode. No changes will be made.")
@@ -150,8 +168,9 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 	port := flag.Int("port", 0, "ZeroFlex client port number.")
 	logLevel := flag.String("log-level", "", "Set the logging level (error, warn, info, verbose, debug, or trace).")
 	logTimestamps := flag.Bool("log-timestamps", true, "Enable timestamps in logs. Default: true")
-	tokenFile := flag.String("token-file", "", "Path to the ZeroFlex authentication token file.")
+	tokenFile := flag.String("token-file", "", "Path to the ZeroTier authentication token file.")
 	token := flag.String("token", "", "API token to use. Overrides token-file if provided.")
+	banner := flag.Bool("banner", true, "Show the startup banner (default: true)")
 
 	logger.Verbose("Defined command line flags")
 
@@ -179,15 +198,18 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 	// Help/version logic: allow these even as non-root
 	if *help || *helpShort {
 		logger.Trace("Help flag requested, returning early")
-		return config.Config{}, false, true, nil
+		return config.Config{}, false, true, false, nil
 	}
 	if *version || *versionShort {
 		logger.Trace("Version flag requested, returning early")
-		return config.Config{}, false, false, fmt.Errorf("version requested")
+		return config.Config{}, false, false, false, fmt.Errorf("version requested")
 	}
 
 	// Determine config file path from any alias
-	finalConfigFile := *configFile
+	finalConfigFile := ""
+	if *configFile != "" {
+		finalConfigFile = *configFile
+	}
 	if *configFileShort != "" {
 		finalConfigFile = *configFileShort
 	}
@@ -287,7 +309,7 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 		// Validate interval
 		if _, err := utils.ParseInterval(cfg.Default.Daemon.PollInterval); err != nil {
 			logger.Error("Invalid poll interval '%s': %v", cfg.Default.Daemon.PollInterval, err)
-			return config.Config{}, false, false, fmt.Errorf("invalid poll interval '%s': %w", cfg.Default.Daemon.PollInterval, err)
+			return config.Config{}, false, false, false, fmt.Errorf("invalid poll interval '%s': %w", cfg.Default.Daemon.PollInterval, err)
 		}
 		logger.Verbose("Running in daemon mode with API polling interval: %s", cfg.Default.Daemon.PollInterval)
 	} else {
@@ -323,7 +345,7 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 	logger.Trace("Final configuration - Mode: %s, LogLevel: %s, DaemonMode: %t, PollInterval: %s",
 		cfg.Default.Mode, cfg.Default.Log.Level, cfg.Default.Daemon.Enabled, cfg.Default.Daemon.PollInterval)
 
-	return cfg, *dryRun, false, nil
+	return cfg, *dryRun, false, *banner, nil
 }
 
 // mergeProfiles merges a selected profile with the default profile
@@ -389,4 +411,43 @@ func mergeProfiles(defaultProfile, selectedProfile config.Profile) config.Profil
 	}
 
 	return merged
+}
+
+func init() {
+	flag.Usage = func() {
+		showStartupBanner("info", false, Version)
+		printCopyrightAndLicense()
+		// Only print version once
+		fmt.Fprintf(flag.CommandLine.Output(), "ZeroFlex version: %s\n\n", getVersionString())
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: zeroflex [options]\n\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "General Options:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--help", "Show help message and exit")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--version", "Print the version and exit")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--config-file", "Path to the configuration file")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--profile", "Specify a profile to use from the configuration file")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--dry-run", "Enable dry-run mode. No changes will be made.")
+		fmt.Fprintf(flag.CommandLine.Output(), "\nLogging Options:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--log-level", "Set the logging level ('info', 'verbose'*, 'error', 'debug', 'trace')")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--log-type", "Log output type: 'console'*, 'file', or 'both'")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--log-file", "Log file path if log-type is 'file' or 'both'")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--log-timestamps", "Enable timestamps in logs")
+		fmt.Fprintf(flag.CommandLine.Output(), "\nFeatures:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--dns-over-tls", "Automatically prefer DNS-over-TLS")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--multicast-dns", "Enable Multicast DNS (mDNS)")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--add-reverse-domains", "Add ip6.arpa and in-addr.arpa search domains")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--restore-on-exit", "Restore original DNS settings for all managed interfaces on exit")
+		fmt.Fprintf(flag.CommandLine.Output(), "\nNetworkd Options:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--auto-restart", "Automatically restart systemd-networkd when things change")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--reconcile", "Automatically remove left networks from systemd-networkd configuration")
+		fmt.Fprintf(flag.CommandLine.Output(), "\nInterface Watch Options:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--interface-watch-mode", "Interface watch mode: event, poll, or off")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--interface-watch-retry-count", "Number of retries after interface event")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--interface-watch-retry-delay", "Delay between interface event retries (e.g., '2s')")
+		fmt.Fprintf(flag.CommandLine.Output(), "\nZeroTier Client Options:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--host", "ZeroTier client host address")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--port", "ZeroTier client port number")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--token", "API token to use. Overrides token-file if provided")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--token-file", "Path to the ZeroTier authentication token file")
+		fmt.Fprintf(flag.CommandLine.Output(), "\n") // Add trailing newline for clean output
+	}
 }
