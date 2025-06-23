@@ -39,6 +39,9 @@ type Flags struct {
 	Reconcile         *bool
 	Token             *string
 	RestoreOnExit     *bool
+	InterfaceWatchMode *string
+	InterfaceWatchRetryCount *int
+	InterfaceWatchRetryDelay *string
 }
 
 // ParseFlags initializes and parses command line flags
@@ -67,6 +70,9 @@ func ParseFlags() (*Flags, map[string]bool) {
 		Reconcile:         flag.Bool("reconcile", true, "Automatically remove left networks from systemd-networkd configuration"),
 		Token:             flag.String("token", "", "API token to use. Overrides token-file if provided."),
 		RestoreOnExit:     flag.Bool("restore-on-exit", false, "Restore original DNS settings for all managed interfaces on exit (default: false)"),
+		InterfaceWatchMode: flag.String("interface-watch-mode", "event", "Interface watch mode: event, poll, or off."),
+		InterfaceWatchRetryCount: flag.Int("interface-watch-retry-count", 3, "Number of retries after interface event."),
+		InterfaceWatchRetryDelay: flag.String("interface-watch-retry-delay", "2s", "Delay between interface event retries (e.g., 2s)."),
 	}
 
 	flag.Parse()
@@ -147,5 +153,14 @@ func ApplyExplicitFlags(cfg *config.Config, flags *Flags, explicitFlags map[stri
 	}
 	if explicitFlags["restore-on-exit"] {
 		cfg.Default.RestoreOnExit = *flags.RestoreOnExit
+	}
+	if explicitFlags["interface-watch-mode"] {
+		cfg.Default.InterfaceWatchMode = *flags.InterfaceWatchMode
+	}
+	if explicitFlags["interface-watch-retry-count"] {
+		cfg.Default.InterfaceWatchRetryCount = *flags.InterfaceWatchRetryCount
+	}
+	if explicitFlags["interface-watch-retry-delay"] {
+		cfg.Default.InterfaceWatchRetryDelay = *flags.InterfaceWatchRetryDelay
 	}
 }

@@ -198,7 +198,7 @@
 
             pollInterval = lib.mkOption {
               type = lib.types.str;
-              default = "1m";
+              default = "30m";
               description = "Interval for polling execution (e.g., 1m, 5m, 1h, 1d).";
             };
 
