@@ -5,6 +5,7 @@
 package app
 
 import (
+	"zeroplex/pkg/cli"
 	"zeroplex/pkg/config"
 	"zeroplex/pkg/log"
 	"zeroplex/pkg/runner"
@@ -91,24 +92,30 @@ func printVersion(version string) {
 
 // Run starts the application
 func (a *App) Run() error {
-	// Root check FIRST, before any config file loading
+	// Parse flags as early as possible
+	flags, _ := cli.ParseFlags()
+
+	// Check for help/version flags before anything else
+	if *flags.Help || *flags.HelpShort {
+		printHelpWithVersion(false)
+		return nil
+	}
+	if *flags.Version || *flags.VersionShort {
+		printVersion(getVersionString())
+		return nil
+	}
+
+	// Require root for all other operations
 	if os.Geteuid() != 0 {
 		printVersion(getVersionString())
 		fmt.Fprintln(os.Stderr, "This application must be run as root. Exiting.")
 		os.Exit(1)
 	}
 
-	cfg, dryRun, help, showBanner, err := a.parseArgsWithBanner()
+	// Now proceed to config and normal operation
+	cfg, dryRun, showBanner, err := a.parseArgsWithBanner()
 	if err != nil {
-		if err.Error() == "version requested" {
-			printVersion(getVersionString())
-			return nil
-		}
 		return err
-	}
-	if help {
-		printHelpWithVersion(cfg.Default.Log.Timestamps)
-		return nil
 	}
 	if showBanner {
 		showStartupBanner(cfg.Default.Log.Level, cfg.Default.Log.Timestamps, "")
@@ -150,7 +157,7 @@ func printHelp() {
 }
 
 // parseArgsWithBanner parses command line arguments and loads configuration, returning showBanner
-func (a *App) parseArgsWithBanner() (config.Config, bool, bool, bool, error) {
+func (a *App) parseArgsWithBanner() (config.Config, bool, bool, error) {
 	logger := log.NewScopedLogger("[app/args]", "info")
 	logger.Trace("Starting command line argument parsing")
 
@@ -198,11 +205,11 @@ func (a *App) parseArgsWithBanner() (config.Config, bool, bool, bool, error) {
 	// Help/version logic: allow these even as non-root
 	if *help || *helpShort {
 		logger.Trace("Help flag requested, returning early")
-		return config.Config{}, false, true, false, nil
+		return config.Config{}, false, false, nil
 	}
 	if *version || *versionShort {
 		logger.Trace("Version flag requested, returning early")
-		return config.Config{}, false, false, false, fmt.Errorf("version requested")
+		return config.Config{}, false, false, fmt.Errorf("version requested")
 	}
 
 	// Determine config file path from any alias
@@ -309,7 +316,7 @@ func (a *App) parseArgsWithBanner() (config.Config, bool, bool, bool, error) {
 		// Validate interval
 		if _, err := utils.ParseInterval(cfg.Default.Daemon.PollInterval); err != nil {
 			logger.Error("Invalid poll interval '%s': %v", cfg.Default.Daemon.PollInterval, err)
-			return config.Config{}, false, false, false, fmt.Errorf("invalid poll interval '%s': %w", cfg.Default.Daemon.PollInterval, err)
+			return config.Config{}, false, false, fmt.Errorf("invalid poll interval '%s': %w", cfg.Default.Daemon.PollInterval, err)
 		}
 		logger.Verbose("Running in daemon mode with API polling interval: %s", cfg.Default.Daemon.PollInterval)
 	} else {
@@ -345,7 +352,7 @@ func (a *App) parseArgsWithBanner() (config.Config, bool, bool, bool, error) {
 	logger.Trace("Final configuration - Mode: %s, LogLevel: %s, DaemonMode: %t, PollInterval: %s",
 		cfg.Default.Mode, cfg.Default.Log.Level, cfg.Default.Daemon.Enabled, cfg.Default.Daemon.PollInterval)
 
-	return cfg, *dryRun, false, *banner, nil
+	return cfg, *dryRun, *banner, nil
 }
 
 // mergeProfiles merges a selected profile with the default profile

@@ -5,20 +5,17 @@
 package cli
 
 import (
-	"zeroplex/pkg/config"
-	"zeroplex/pkg/log"
-
 	"flag"
 	"fmt"
 	"os"
 	"strings"
+	"zeroplex/pkg/config"
 )
 
 // Flags represents all command line flags
 type Flags struct {
 	Version                  *bool
 	VersionShort             *bool
-	VersionLong              *bool
 	Help                     *bool
 	HelpShort                *bool
 	ConfigFile               *string
@@ -51,7 +48,6 @@ func ParseFlags() (*Flags, map[string]bool) {
 	flags := &Flags{
 		Version:                  flag.Bool("version", false, "Print the version and exit"),
 		VersionShort:             flag.Bool("v", false, "Print the version and exit (alias)"),
-		VersionLong:              flag.Bool("--version", false, "Print the version and exit (alias)"),
 		Help:                     flag.Bool("help", false, "Show help message and exit"),
 		HelpShort:                flag.Bool("h", false, "Show help message and exit (alias)"),
 		AddReverseDomains:        flag.Bool("add-reverse-domains", false, "Add ip6.arpa and in-addr.arpa search domains. Default: false"),
@@ -88,7 +84,6 @@ func ParseFlags() (*Flags, map[string]bool) {
 	explicitFlags := make(map[string]bool)
 	flag.Visit(func(f *flag.Flag) {
 		explicitFlags[f.Name] = true
-		log.NewScopedLogger("[flag]", "debug").Debug("Explicit flag detected: %s = %s", f.Name, f.Value.String())
 	})
 
 	return flags, explicitFlags
