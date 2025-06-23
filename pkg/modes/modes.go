@@ -180,7 +180,7 @@ KeepConfiguration=static
 		logger.Info("Found unused networks, reconciling...")
 
 		for fn := range found {
-			logger.Info("Removing %q", fn)
+			logger.Info("Removing stale networkd config file: %q (reconcile)", fn)
 
 			if dryRun {
 				logger.Debug("Would remove %q", fn)
@@ -290,17 +290,28 @@ func RunResolvedMode(networks *service.GetNetworksResponse, addReverseDomains, d
 			managedZTInterfaces[interfaceName] = struct{}{}
 			dns.ConfigureDNSAndSearchDomains(interfaceName, dnsServers, searchKeys, dryRun, logLevel)
 
-			// --- New: Set mDNS and DNS-over-TLS via resolvectl ---
 			if !dryRun {
 				// mDNS
 				mdnsValue := "no"
 				if multicastDNS {
 					mdnsValue = "yes"
 				}
-				if out, err := utils.ExecuteCommand("resolvectl", "mdns", interfaceName, mdnsValue); err != nil {
-					logger.Warn("Failed to set mDNS (%s) for %s: %v", mdnsValue, interfaceName, err)
+				// Query current mDNS setting
+				currentMDNS := ""
+				if out, err := utils.ExecuteCommand("resolvectl", "mdns", interfaceName); err == nil {
+					currentMDNS = strings.TrimSpace(out)
+					logger.Trace("Current mDNS for %s: %s", interfaceName, currentMDNS)
+				}
+				if currentMDNS != mdnsValue {
+					logger.Trace("Running: resolvectl mdns %s %s", interfaceName, mdnsValue)
+					if out, err := utils.ExecuteCommand("resolvectl", "mdns", interfaceName, mdnsValue); err != nil {
+						logger.Warn("Failed to set mDNS (%s) for %s: %v", mdnsValue, interfaceName, err)
+					} else {
+						logger.Trace("resolvectl mdns output: %s", out)
+						logger.Verbose("Set mDNS (%s) for %s", mdnsValue, interfaceName)
+					}
 				} else {
-					logger.Info("Set mDNS (%s) for %s: %s", mdnsValue, interfaceName, out)
+					logger.Trace("mDNS for %s already set to %s, no change needed", interfaceName, mdnsValue)
 				}
 
 				// DNS-over-TLS
@@ -308,10 +319,21 @@ func RunResolvedMode(networks *service.GetNetworksResponse, addReverseDomains, d
 				if dnsOverTLS {
 					dotValue = "yes"
 				}
-				if out, err := utils.ExecuteCommand("resolvectl", "dnsovertls", interfaceName, dotValue); err != nil {
-					logger.Warn("Failed to set DNS-over-TLS (%s) for %s: %v", dotValue, interfaceName, err)
+				currentDOT := ""
+				if out, err := utils.ExecuteCommand("resolvectl", "dnsovertls", interfaceName); err == nil {
+					currentDOT = strings.TrimSpace(out)
+					logger.Trace("Current DNS-over-TLS for %s: %s", interfaceName, currentDOT)
+				}
+				if currentDOT != dotValue {
+					logger.Trace("Running: resolvectl dnsovertls %s %s", interfaceName, dotValue)
+					if out, err := utils.ExecuteCommand("resolvectl", "dnsovertls", interfaceName, dotValue); err != nil {
+						logger.Warn("Failed to set DNS-over-TLS (%s) for %s: %v", dotValue, interfaceName, err)
+					} else {
+						logger.Trace("resolvectl dnsovertls output: %s", out)
+						logger.Verbose("Set DNS-over-TLS (%s) for %s", dotValue, interfaceName)
+					}
 				} else {
-					logger.Info("Set DNS-over-TLS (%s) for %s: %s", dotValue, interfaceName, out)
+					logger.Trace("DNS-over-TLS for %s already set to %s, no change needed", interfaceName, dotValue)
 				}
 			} else {
 				logger.Info("[dry-run] Would set mDNS (%v) and DNS-over-TLS (%v) for %s", multicastDNS, dnsOverTLS, interfaceName)
