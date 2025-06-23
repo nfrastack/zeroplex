@@ -84,7 +84,14 @@ func (r *ResolvedMode) Run(ctx context.Context) error {
 
 // processNetworks handles the actual network processing for resolved
 func (r *ResolvedMode) processNetworks(ctx context.Context, networks *service.GetNetworksResponse) error {
-	// Call the existing resolved implementation directly, passing log level
-	RunResolvedMode(networks, r.GetConfig().Default.Features.AddReverseDomains, r.IsDryRun(), r.GetConfig().Default.Log.Level)
+	// Call the resolved implementation, passing all relevant feature toggles
+	RunResolvedMode(
+		networks,
+		r.GetConfig().Default.Features.AddReverseDomains,
+		r.GetConfig().Default.Features.DNSOverTLS,
+		r.GetConfig().Default.Features.MulticastDNS,
+		r.IsDryRun(),
+		r.GetConfig().Default.Log.Level,
+	)
 	return nil
 }
