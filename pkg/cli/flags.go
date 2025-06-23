@@ -42,6 +42,8 @@ type Flags struct {
 	InterfaceWatchMode *string
 	InterfaceWatchRetryCount *int
 	InterfaceWatchRetryDelay *string
+	LogType           *string
+	LogFile           *string
 }
 
 // ParseFlags initializes and parses command line flags
@@ -73,6 +75,8 @@ func ParseFlags() (*Flags, map[string]bool) {
 		InterfaceWatchMode: flag.String("interface-watch-mode", "event", "Interface watch mode: event, poll, or off."),
 		InterfaceWatchRetryCount: flag.Int("interface-watch-retry-count", 3, "Number of retries after interface event."),
 		InterfaceWatchRetryDelay: flag.String("interface-watch-retry-delay", "2s", "Delay between interface event retries (e.g., 2s)."),
+		LogType:           flag.String("log-type", "console", "Log output type: console, file, or both. Default: console."),
+		LogFile:           flag.String("log-file", "/var/log/zeroflex.log", "Log file path if log-type is file or both. Default: /var/log/zeroflex.log."),
 	}
 
 	flag.Parse()
@@ -162,5 +166,11 @@ func ApplyExplicitFlags(cfg *config.Config, flags *Flags, explicitFlags map[stri
 	}
 	if explicitFlags["interface-watch-retry-delay"] {
 		cfg.Default.InterfaceWatchRetryDelay = *flags.InterfaceWatchRetryDelay
+	}
+	if explicitFlags["log-type"] {
+		cfg.Default.LogType = *flags.LogType
+	}
+	if explicitFlags["log-file"] {
+		cfg.Default.LogFile = *flags.LogFile
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"zeroflex/pkg/utils"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"time"
 )
@@ -294,6 +295,28 @@ func (a *App) parseArgs() (config.Config, bool, bool, error) {
 
 	// After all config/profile merging and explicit flag application, update logger global state
 	log.GetLogger().SetShowTimestamps(cfg.Default.LogTimestamps)
+
+	// Set up logging output type and file if specified
+	if cfg.Default.LogType == "file" || cfg.Default.LogType == "both" {
+		logFile := cfg.Default.LogFile
+		if logFile == "" {
+			logFile = "/var/log/zeroflex.log"
+		}
+		f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err == nil {
+			if cfg.Default.LogType == "file" {
+				log.GetLogger().SetOutput(f)
+			} else if cfg.Default.LogType == "both" {
+				// Log to both file and console: use MultiWriter
+				mw := io.MultiWriter(os.Stdout, f)
+				log.GetLogger().SetOutput(mw)
+			}
+		} else {
+			fmt.Fprintf(os.Stderr, "Failed to open log file %s: %v\n", logFile, err)
+		}
+	} else {
+		log.GetLogger().SetOutput(os.Stdout)
+	}
 
 	logger.Debug("Configuration parsing completed successfully")
 	logger.Trace("Final configuration - Mode: %s, LogLevel: %s, DaemonMode: %t, PollInterval: %s",

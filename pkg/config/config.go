@@ -45,6 +45,8 @@ type Profile struct {
 	Filters           []map[string]interface{} `yaml:"filters,omitempty"`
 	InterfaceWatch    InterfaceWatch           `yaml:"interface_watch"`
 	RestoreOnExit     bool                     `yaml:"restore_on_exit"`
+	LogType           string                   `yaml:"log_type"`
+	LogFile           string                   `yaml:"log_file"`
 }
 
 // HasAdvancedFilters checks if the profile has advanced filters configured
