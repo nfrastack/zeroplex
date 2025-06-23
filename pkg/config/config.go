@@ -13,9 +13,34 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Config struct {
-	Default  Profile            `yaml:"default"`
-	Profiles map[string]Profile `yaml:"profiles"`
+type LogConfig struct {
+	Level      string `yaml:"level"`
+	Type       string `yaml:"type"`
+	File       string `yaml:"file"`
+	Timestamps bool   `yaml:"timestamps"`
+}
+
+type DaemonConfig struct {
+	Enabled      bool   `yaml:"enabled"`
+	PollInterval string `yaml:"poll_interval"`
+}
+
+type ClientConfig struct {
+	Host      string `yaml:"host"`
+	Port      int    `yaml:"port"`
+	TokenFile string `yaml:"token_file"`
+}
+
+type FeaturesConfig struct {
+	DNSOverTLS        bool `yaml:"dns_over_tls"`
+	AddReverseDomains bool `yaml:"add_reverse_domains"`
+	MulticastDNS      bool `yaml:"multicast_dns"`
+	RestoreOnExit     bool `yaml:"restore_on_exit"`
+}
+
+type NetworkdConfig struct {
+	AutoRestart bool `yaml:"auto_restart"`
+	Reconcile   bool `yaml:"reconcile"`
 }
 
 type InterfaceWatchRetry struct {
@@ -29,24 +54,19 @@ type InterfaceWatch struct {
 }
 
 type Profile struct {
-	DaemonMode        bool                     `yaml:"daemon_mode"`
-	Mode              string                   `yaml:"mode"`
-	LogLevel          string                   `yaml:"log_level"`
-	Host              string                   `yaml:"host"`
-	Port              int                      `yaml:"port"`
-	DNSOverTLS        bool                     `yaml:"dns_over_tls"`
-	AutoRestart       bool                     `yaml:"auto_restart"`
-	AddReverseDomains bool                     `yaml:"add_reverse_domains"`
-	LogTimestamps     bool                     `yaml:"log_timestamps"`
-	MulticastDNS      bool                     `yaml:"multicast_dns"`
-	Reconcile         bool                     `yaml:"reconcile"`
-	TokenFile         string                   `yaml:"token_file"`
-	PollInterval      string                   `yaml:"poll_interval"`
-	Filters           []map[string]interface{} `yaml:"filters,omitempty"`
-	InterfaceWatch    InterfaceWatch           `yaml:"interface_watch"`
-	RestoreOnExit     bool                     `yaml:"restore_on_exit"`
-	LogType           string                   `yaml:"log_type"`
-	LogFile           string                   `yaml:"log_file"`
+	Mode           string                   `yaml:"mode"`
+	Log            LogConfig                `yaml:"log"`
+	Daemon         DaemonConfig             `yaml:"daemon"`
+	Client         ClientConfig             `yaml:"client"`
+	Features       FeaturesConfig           `yaml:"features"`
+	Networkd       NetworkdConfig           `yaml:"networkd"`
+	InterfaceWatch InterfaceWatch           `yaml:"interface_watch"`
+	Filters        []map[string]interface{} `yaml:"filters,omitempty"`
+}
+
+type Config struct {
+	Default  Profile            `yaml:"default"`
+	Profiles map[string]Profile `yaml:"profiles"`
 }
 
 // HasAdvancedFilters checks if the profile has advanced filters configured
@@ -71,19 +91,32 @@ func (p Profile) GetAdvancedFilterConfig() (map[string]interface{}, error) {
 func DefaultConfig() Config {
 	return Config{
 		Default: Profile{
-			Mode:              "auto",
-			LogLevel:          "verbose",
-			Host:              "http://localhost",
-			Port:              9993,
-			DNSOverTLS:        false,
-			AutoRestart:       true,
-			AddReverseDomains: false,
-			LogTimestamps:     false,
-			MulticastDNS:      false,
-			Reconcile:         true,
-			TokenFile:         "/var/lib/zerotier-one/authtoken.secret",
-	    	DaemonMode:        true,
-	    	PollInterval:      "1m",
+			Mode: "auto",
+			Log: LogConfig{
+				Level:      "verbose",
+				Type:       "console",
+				File:       "/var/log/zeroflex.log",
+				Timestamps: false,
+			},
+			Daemon: DaemonConfig{
+				Enabled:      true,
+				PollInterval: "1m",
+			},
+			Client: ClientConfig{
+				Host:      "http://localhost",
+				Port:      9993,
+				TokenFile: "/var/lib/zerotier-one/authtoken.secret",
+			},
+			Networkd: NetworkdConfig{
+				AutoRestart: true,
+				Reconcile:   true,
+			},
+			Features: FeaturesConfig{
+				DNSOverTLS:        false,
+				AddReverseDomains: false,
+				MulticastDNS:      false,
+				RestoreOnExit:     false,
+			},
 			InterfaceWatch: InterfaceWatch{
 				Mode: "off",
 				Retry: InterfaceWatchRetry{
@@ -137,8 +170,8 @@ func LoadConfiguration(configFile string) Config {
 			defaultConfig := DefaultConfig()
 
 			// Apply token file default if not set in config
-			if loadedConfig.Default.TokenFile == "" {
-				loadedConfig.Default.TokenFile = defaultConfig.Default.TokenFile
+			if loadedConfig.Default.Client.TokenFile == "" {
+				loadedConfig.Default.Client.TokenFile = defaultConfig.Default.Client.TokenFile
 			}
 
 			return loadedConfig
@@ -146,7 +179,7 @@ func LoadConfiguration(configFile string) Config {
 			if configFile != "/etc/zeroflex.yaml" {
 				fmt.Fprintf(os.Stderr, "ERROR: Configuration file %s not found: %v\n", configFile, err)
 				os.Exit(1)
-				}
+			}
 		} else {
 			fmt.Fprintf(os.Stderr, "ERROR: Checking configuration file existence: %v\n", err)
 			os.Exit(1)
@@ -157,11 +190,11 @@ func LoadConfiguration(configFile string) Config {
 }
 
 func ValidateConfig(cfg *Config) error {
-	if cfg.Default.Host == "" {
-		return fmt.Errorf("missing required configuration: host")
+	if cfg.Default.Client.Host == "" {
+		return fmt.Errorf("missing required configuration: client.host")
 	}
-	if cfg.Default.Port == 0 {
-		return fmt.Errorf("missing required configuration: port")
+	if cfg.Default.Client.Port == 0 {
+		return fmt.Errorf("missing required configuration: client.port")
 	}
 
 	mode := strings.ToLower(cfg.Default.Mode)
@@ -169,9 +202,9 @@ func ValidateConfig(cfg *Config) error {
 		return fmt.Errorf("invalid mode: %s (must be auto, networkd, or resolved)", cfg.Default.Mode)
 	}
 
-	logLevel := strings.ToLower(cfg.Default.LogLevel)
+	logLevel := strings.ToLower(cfg.Default.Log.Level)
 	if logLevel != "error" && logLevel != "warn" && logLevel != "info" && logLevel != "verbose" && logLevel != "debug" && logLevel != "trace" {
-		return fmt.Errorf("invalid log level: %s (must be error, warn, info, verbose, debug, or trace)", cfg.Default.LogLevel)
+		return fmt.Errorf("invalid log level: %s (must be error, warn, info, verbose, debug, or trace)", cfg.Default.Log.Level)
 	}
 
 	// Validate profiles
@@ -184,11 +217,11 @@ func ValidateConfig(cfg *Config) error {
 			}
 		}
 
-		if profile.LogLevel != "" {
-			logLevel = strings.ToLower(profile.LogLevel)
+		if profile.Log.Level != "" {
+			logLevel = strings.ToLower(profile.Log.Level)
 			if logLevel != "error" && logLevel != "warn" && logLevel != "info" && logLevel != "verbose" && logLevel != "debug" && logLevel != "trace" {
 				return fmt.Errorf("invalid log level in profile %s: %s (must be error, warn, info, verbose, debug, or trace)",
-					name, profile.LogLevel)
+					name, profile.Log.Level)
 			}
 		}
 	}
@@ -226,24 +259,56 @@ func MergeProfiles(defaultProfile, selectedProfile Profile) Profile {
 	if selectedProfile.Mode != "" {
 		mergedProfile.Mode = selectedProfile.Mode
 	}
-	if selectedProfile.LogLevel != "" {
-		mergedProfile.LogLevel = selectedProfile.LogLevel
+
+	// Merge Log Config
+	if selectedProfile.Log.Level != "" {
+		mergedProfile.Log.Level = selectedProfile.Log.Level
 	}
-	if selectedProfile.Host != "" {
-		mergedProfile.Host = selectedProfile.Host
+	if selectedProfile.Log.Type != "" {
+		mergedProfile.Log.Type = selectedProfile.Log.Type
 	}
-	if selectedProfile.Port != 0 {
-		mergedProfile.Port = selectedProfile.Port
+	if selectedProfile.Log.File != "" {
+		mergedProfile.Log.File = selectedProfile.Log.File
 	}
-	if selectedProfile.TokenFile != "" {
-		mergedProfile.TokenFile = selectedProfile.TokenFile
-	} else if mergedProfile.TokenFile == "" {
-		mergedProfile.TokenFile = "/var/lib/zerotier-one/authtoken.secret"
+	mergedProfile.Log.Timestamps = mergedProfile.Log.Timestamps || selectedProfile.Log.Timestamps
+
+	// Merge Daemon Config
+	if selectedProfile.Daemon.Enabled {
+		mergedProfile.Daemon.Enabled = true
+	}
+	if selectedProfile.Daemon.PollInterval != "" {
+		mergedProfile.Daemon.PollInterval = selectedProfile.Daemon.PollInterval
 	}
 
-	// Copy daemon configuration
-	if selectedProfile.PollInterval != "" {
-		mergedProfile.PollInterval = selectedProfile.PollInterval
+	// Merge Client Config
+	if selectedProfile.Client.Host != "" {
+		mergedProfile.Client.Host = selectedProfile.Client.Host
+	}
+	if selectedProfile.Client.Port != 0 {
+		mergedProfile.Client.Port = selectedProfile.Client.Port
+	}
+	if selectedProfile.Client.TokenFile != "" {
+		mergedProfile.Client.TokenFile = selectedProfile.Client.TokenFile
+	} else if mergedProfile.Client.TokenFile == "" {
+		mergedProfile.Client.TokenFile = "/var/lib/zerotier-one/authtoken.secret"
+	}
+
+	// Merge Networkd Config
+	mergedProfile.Networkd.AutoRestart = mergedProfile.Networkd.AutoRestart || selectedProfile.Networkd.AutoRestart
+	mergedProfile.Networkd.Reconcile = mergedProfile.Networkd.Reconcile || selectedProfile.Networkd.Reconcile
+
+	// Merge Features Config
+	if selectedProfile.Features.DNSOverTLS {
+		mergedProfile.Features.DNSOverTLS = true
+	}
+	if selectedProfile.Features.AddReverseDomains {
+		mergedProfile.Features.AddReverseDomains = true
+	}
+	if selectedProfile.Features.MulticastDNS {
+		mergedProfile.Features.MulticastDNS = true
+	}
+	if selectedProfile.Features.RestoreOnExit {
+		mergedProfile.Features.RestoreOnExit = true
 	}
 
 	// Copy Filters
@@ -251,27 +316,15 @@ func MergeProfiles(defaultProfile, selectedProfile Profile) Profile {
 		mergedProfile.Filters = selectedProfile.Filters
 	}
 
-	// Boolean flags
-	if selectedProfile.DNSOverTLS {
-		mergedProfile.DNSOverTLS = true
+	// Interface Watch
+	if selectedProfile.InterfaceWatch.Mode != "" {
+		mergedProfile.InterfaceWatch.Mode = selectedProfile.InterfaceWatch.Mode
 	}
-	if selectedProfile.AddReverseDomains {
-		mergedProfile.AddReverseDomains = true
+	if selectedProfile.InterfaceWatch.Retry.Count != 0 {
+		mergedProfile.InterfaceWatch.Retry.Count = selectedProfile.InterfaceWatch.Retry.Count
 	}
-	if selectedProfile.LogTimestamps {
-		mergedProfile.LogTimestamps = true
-	}
-	if selectedProfile.MulticastDNS {
-		mergedProfile.MulticastDNS = true
-	}
-	if selectedProfile.DaemonMode {
-		mergedProfile.DaemonMode = true
-	}
-	if !selectedProfile.AutoRestart {
-		mergedProfile.AutoRestart = false
-	}
-	if !selectedProfile.Reconcile {
-		mergedProfile.Reconcile = false
+	if selectedProfile.InterfaceWatch.Retry.Delay != "" {
+		mergedProfile.InterfaceWatch.Retry.Delay = selectedProfile.InterfaceWatch.Retry.Delay
 	}
 
 	return mergedProfile

@@ -29,23 +29,23 @@ const (
 
 // ZeroTier-specific filter types
 const (
-	FilterTypeNone       FilterType = "none"
-	FilterTypeName       FilterType = "name"
-	FilterTypeInterface  FilterType = "interface"
-	FilterTypeNetwork    FilterType = "network"
-	FilterTypeNetworkID  FilterType = "network_id"
-	FilterTypeOnline     FilterType = "online"
-	FilterTypeAssigned   FilterType = "assigned"
-	FilterTypeAddress    FilterType = "address"
-	FilterTypeRoute      FilterType = "route"
+	FilterTypeNone      FilterType = "none"
+	FilterTypeName      FilterType = "name"
+	FilterTypeInterface FilterType = "interface"
+	FilterTypeNetwork   FilterType = "network"
+	FilterTypeNetworkID FilterType = "network_id"
+	FilterTypeOnline    FilterType = "online"
+	FilterTypeAssigned  FilterType = "assigned"
+	FilterTypeAddress   FilterType = "address"
+	FilterTypeRoute     FilterType = "route"
 )
 
 // Filter defines a filter for ZeroTier networks
 type Filter struct {
 	Type       FilterType        `yaml:"type" mapstructure:"type"`
-	Value      string            `yaml:"value,omitempty" mapstructure:"value,omitempty"` // For simple filters
-	Operation  string            `yaml:"operation,omitempty" mapstructure:"operation,omitempty"` // AND, OR, NOT (defaults to AND)
-	Negate     bool              `yaml:"negate,omitempty" mapstructure:"negate,omitempty"` // Invert the filter result
+	Value      string            `yaml:"value,omitempty" mapstructure:"value,omitempty"`           // For simple filters
+	Operation  string            `yaml:"operation,omitempty" mapstructure:"operation,omitempty"`   // AND, OR, NOT (defaults to AND)
+	Negate     bool              `yaml:"negate,omitempty" mapstructure:"negate,omitempty"`         // Invert the filter result
 	Conditions []FilterCondition `yaml:"conditions,omitempty" mapstructure:"conditions,omitempty"` // Filter conditions
 }
 
@@ -69,7 +69,7 @@ func DefaultFilterConfig() FilterConfig {
 
 // ApplyFilters applies filtering
 func ApplyFilters(networks *service.GetNetworksResponse, profile config.Profile) {
-	logger := log.NewLogger("[filters]", profile.LogLevel)
+	logger := log.NewLogger("[filters]", profile.Log.Level)
 	logger.Trace("ApplyFilters() started")
 
 	if !profile.HasAdvancedFilters() {

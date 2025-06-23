@@ -25,38 +25,45 @@ This flake provides a NixOS module that allows you to configure and run ZeroFlex
   imports = [
     inputs.zeroflex.nixosModules.default
   ];
-
-  services.zeroflex = {
-    enable = true;
-    mode = "networkd";          # Options: "auto", "networkd", "resolved"
-    logLevel = "info";          # Logging level: "info" or "debug"
-  };
 }
 ```
 
-#### Additional Options
+#### Available Options
 
-Here are the available options for the NixOS module:
+Here are the available options for the NixOS module (`services.zeroflex`):
 
-* `enable` (bool): Enable or disable the service.
-* `configFile` (str): Configuration file to load. Default: `/etc/zeroflex.yml`
-* `mode` (enum): Mode of operation. Options: `"auto"`, `"networkd"`, `"resolved"`. Default: `"auto"`.
-* `profile` (str): Specify a profile to load configuration from the configuration file. Default: `""`.
-* `port` (int): ZeroTier client port number. Default: `9993`.
-* `host` (str): ZeroTier client host address. Default: `"http://localhost"`.
-* `tokenFile` (str): Path to the ZeroTier authentication token file. Default: `"/var/lib/zerotier-one/authtoken.secret"`.
-* `addReverseDomains` (bool): Add ip6.arpa and in-addr.arpa search domains. Default: `false`.
-* `autoRestart` (bool): Automatically restart systemd-networkd when things change. Default: `true`.
-* `dnsOverTLS` (bool): Prefer DNS-over-TLS. Default: `false`.
-* `dryRun` (bool): Simulate changes without applying them. Default: `false`.
-* `multicastDNS` (bool): Enable mDNS resolution on the ZeroTier interface. Default: `false`.
-* `reconcile` (bool): Automatically remove left networks from systemd-networkd configuration. Default: `true`.
-* `logLevel` (enum): Logging level. Options: `"error"`, `"warn"`, `"info"`, `"verbose"`, `"debug"`, `"trace"`. Default: `"verbose"`.
-* `logTimestamps` (bool): Log timestamps (YYYY-MM-DD HH:MM:SS). Default: `false`.
-* `daemonMode` (bool): Run in daemon mode with periodic execution. Default: `true`.
-* `pollInterval` (str): Interval for polling execution (e.g., `"1m"`, `"5m"`, `"1h"`). Default: `"1m"`.
-* `restoreOnExit` (bool): Restore original DNS settings for all managed interfaces on exit. Default: `false`.
-* `profiles` (attrs): Additional profiles for advanced filtering and configuration. Default: `{}`.
-* `interfaceWatch` (attrs): Interface watch configuration (mode, retry). Default: `{}`.
+* `enable` (bool): Enable or disable the ZeroFlex service.
+* `package` (package): The package to use for the service. Default: the flake's Go build.
+* `configFile` (str): Path to the YAML configuration file. Default: `/etc/zeroflex.yml`
+* `mode` (str): Backend mode. One of `"auto"`, `"networkd"`, or `"resolved"`.
+* `log` (attrs): Logging configuration.
+  * `level` (str): Logging level (`"error"`, `"warn"`, `"info"`, `"verbose"`, `"debug"`, `"trace"`).
+  * `type` (str): Logging output type (`"console"`, `"file"`, or `"both"`).
+  * `file` (str): Log file path (used if type is `file` or `both`).
+  * `timestamps` (bool): Enable timestamps in logs.
+* `daemon` (attrs): Daemon mode configuration.
+  * `enabled` (bool): Run in daemon mode (true/false).
+  * `poll_interval` (str): Polling interval (e.g., `"1m"`).
+* `client` (attrs): ZeroTier client API configuration.
+  * `host` (str): ZeroTier client host address.
+  * `port` (int): ZeroTier client port.
+  * `token_file` (str): Path to ZeroTier API token file.
+* `features` (attrs): Feature toggles.
+  * `dns_over_tls` (bool): Prefer DNS-over-TLS.
+  * `add_reverse_domains` (bool): Add ip6.arpa and in-addr.arpa search domains.
+  * `multicast_dns` (bool): Enable Multicast DNS (mDNS).
+  * `restore_on_exit` (bool): Restore DNS for all managed interfaces on exit.
+* `networkd` (attrs): systemd-networkd integration options.
+  * `auto_restart` (bool): Automatically restart systemd-networkd when things change.
+  * `reconcile` (bool): Remove left networks from systemd-networkd configuration.
+* `interface_watch` (attrs): Interface watcher configuration.
+  * `mode` (str): Interface watch mode (`"event"`, `"poll"`, `"off"`).
+  * `retry` (attrs): Retry configuration.
+    * `count` (int): Number of retries after interface event.
+    * `delay` (str): Delay between retries (duration string).
+* `profile` (str): The profile to load for the zeroflex service. This should match one of the keys in the `profiles` option. If not specified, the default profile will be used.
+* `profiles` (attrs): Additional named profiles for advanced filtering and configuration. Each profile is a nested attribute set with the same structure as the top-level config. Supports advanced filtering via the `filters` key.
+
+See the [configuration.nix](./configuration.nix) for comprehensive examples of advanced filtering and profile usage.
 
 This setup allows you to fully configure and manage the ZeroFlex service declaratively using NixOS.

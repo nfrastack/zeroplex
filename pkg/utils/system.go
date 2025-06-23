@@ -15,7 +15,7 @@ func IsRunningUnderSystemd() bool {
 
 // GetVersion returns the application version from environment or default
 func GetVersion() string {
-	version := os.Getenv("ZT_DNS_VERSION")
+	version := os.Getenv("ZEROFLEX_VERSION")
 	if version == "" {
 		version = "development"
 	}

@@ -6,9 +6,9 @@ package modes
 
 import (
 	"zeroflex/pkg/config"
+	"zeroflex/pkg/dns"
 	"zeroflex/pkg/log"
 	"zeroflex/pkg/utils"
-	"zeroflex/pkg/dns"
 
 	"context"
 	"fmt"
@@ -23,7 +23,7 @@ type ResolvedMode struct {
 
 // NewResolvedMode creates a new resolved mode runner
 func NewResolvedMode(cfg config.Config, dryRun bool) (*ResolvedMode, error) {
-	logger := log.NewScopedLogger("[modes/resolved]", cfg.Default.LogLevel)
+	logger := log.NewScopedLogger("[modes/resolved]", cfg.Default.Log.Level)
 	// Verify systemd-resolved is available and running
 	logger.Trace("Checking systemd-resolved service status")
 	output, err := utils.ExecuteCommand("systemctl", "is-active", "systemd-resolved.service")
@@ -53,7 +53,7 @@ func (r *ResolvedMode) GetMode() string {
 
 // Run executes the resolved mode logic
 func (r *ResolvedMode) Run(ctx context.Context) error {
-	logger := log.NewScopedLogger("[modes/resolved]", r.GetConfig().Default.LogLevel)
+	logger := log.NewScopedLogger("[modes/resolved]", r.GetConfig().Default.Log.Level)
 	logger.Trace(">>> ResolvedMode.Run() started")
 	logger.Debug("Running in resolved mode (dry-run: %t)", r.IsDryRun())
 
@@ -64,7 +64,7 @@ func (r *ResolvedMode) Run(ctx context.Context) error {
 		// Restore DNS for all interfaces with saved state
 		logger.Warn("Restoring DNS for all managed interfaces due to ZeroTier API/network failure")
 		for _, iface := range dns.GetChangedInterfaces() {
-			dns.RestoreSavedDNS(iface, r.GetConfig().Default.LogLevel)
+			dns.RestoreSavedDNS(iface, r.GetConfig().Default.Log.Level)
 		}
 		return err
 	}
@@ -85,6 +85,6 @@ func (r *ResolvedMode) Run(ctx context.Context) error {
 // processNetworks handles the actual network processing for resolved
 func (r *ResolvedMode) processNetworks(ctx context.Context, networks *service.GetNetworksResponse) error {
 	// Call the existing resolved implementation directly, passing log level
-	RunResolvedMode(networks, r.GetConfig().Default.AddReverseDomains, r.IsDryRun(), r.GetConfig().Default.LogLevel)
+	RunResolvedMode(networks, r.GetConfig().Default.Features.AddReverseDomains, r.IsDryRun(), r.GetConfig().Default.Log.Level)
 	return nil
 }

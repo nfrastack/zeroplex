@@ -47,7 +47,7 @@ ExecStart=/usr/local/bin/zeroflex --log-level debug --dry-run
 
 In this example:
 
-- `--log-level debug` sets the logging level to debug.
+- `--log-level debug` sets the logging level to debug (nested config key).
 - `--dry-run` enables dry-run mode, where no changes are applied.
 
 After modifying the service file, reload the systemd daemon and restart the service:
@@ -59,12 +59,11 @@ sudo systemctl restart zeroflex
 
 ### Using Profiles for Configuration
 
-`zeroflex.service` support the use of profiles to simplify configuration management. Profiles allow you to define specific settings in configuration files, avoiding the need to pass multiple arguments directly to the service.
+`zeroflex.service` supports the use of profiles to simplify configuration management. Profiles allow you to define specific settings in configuration files, avoiding the need to pass multiple arguments directly to the service.
 
 #### How to Use Profiles
 
-1. Update the configuration to support profiles with the desired settings.
-
+1. Update the configuration to support profiles with the desired settings (using the nested YAML structure).
 2. Modify the `ExecStart` line in the service file to include the `-profile` flag:
 
    ```ini

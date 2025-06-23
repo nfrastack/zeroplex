@@ -1,39 +1,52 @@
 # ZeroFlex Configuration
 
+# Top-level config uses nested keys for all options.
+# See README for full documentation.
+
 default:
   mode: "auto"
-  log_level: "info"
-  host: "http://localhost"
-  port: 9993
-  dns_over_tls: false
-  auto_restart: true
-  add_reverse_domains: false
-  log_timestamps: false
-  multicast_dns: false
-  reconcile: true
-  token_file: "/var/lib/zerotier-one/authtoken.secret"
-  daemon_mode: true  # Default to daemon mode
-  poll_interval: "1m"
+  log:
+    level: "info"
+    type: "console"         # Options: console, file, both
+    file: "/var/log/zeroflex.log"
+    timestamps: false
+  daemon:
+    enabled: true           # Default to daemon mode
+    poll_interval: "1m"
+  client:
+    host: "http://localhost"
+    port: 9993
+    token_file: "/var/lib/zerotier-one/authtoken.secret"
+  features:
+    dns_over_tls: false
+    add_reverse_domains: false
+    multicast_dns: false
+    restore_on_exit: false
   interface_watch:
     mode: "event"         # Options: event, poll, off
     retry:
       count: 3            # Number of retries after interface event
       delay: "2s"         # Delay between retries (duration string)
-  restore_on_exit: false
+  networkd:
+    auto_restart: true
+    reconcile: true
 
 profiles:
   # Development profile with debug logging and daemon mode
   development:
-    log_level: "debug"
-    log_timestamps: true
-    daemon_mode: true
-    poll_interval: "30s"
+    log:
+      level: "debug"
+      timestamps: true
+    daemon:
+      enabled: true
+      poll_interval: "30s"
     interface_watch:
       mode: "event"
       retry:
         count: 3
         delay: "2s"
-    restore_on_exit: false
+    features:
+      restore_on_exit: false
     filters:
       - type: "interface"
         conditions:
@@ -45,17 +58,21 @@ profiles:
   # Production profile with specific networks
   production:
     mode: "networkd"
-    log_level: "info"
-    auto_restart: true
-    dns_over_tls: true
-    daemon_mode: true
-    daemon_interval: "5m"
+    log:
+      level: "info"
+    daemon:
+      enabled: true
+      poll_interval: "5m"
+    networkd:
+      auto_restart: true
+      reconcile: true
     interface_watch:
       mode: "poll"
       retry:
         count: 2
         delay: "1s"
-    restore_on_exit: false
+    features:
+      restore_on_exit: false
     filters:
       - type: "network"
         conditions:
@@ -72,9 +89,11 @@ profiles:
   # Resolved mode for desktop systems
   desktop:
     mode: "resolved"
-    log_level: "info"
-    add_reverse_domains: true
-    restore_on_exit: false
+    log:
+      level: "info"
+    features:
+      add_reverse_domains: true
+      restore_on_exit: false
     filters:
       - type: "network_id"
         conditions:
@@ -85,16 +104,21 @@ profiles:
 
   # Simple daemon mode
   daemon_simple:
-    daemon_mode: true
-    daemon_interval: "2m"
-    log_level: "info"
-    restore_on_exit: false
+    daemon:
+      enabled: true
+      poll_interval: "2m"
+    log:
+      level: "info"
+    features:
+      restore_on_exit: false
 
   # Advanced filtering examples
   advanced_filtering:
     mode: "networkd"
-    log_level: "debug"
-    restore_on_exit: false
+    log:
+      level: "debug"
+    features:
+      restore_on_exit: false
     filters:
       # Filter 1: Include only online networks with specific names
       - type: "name"
@@ -119,8 +143,10 @@ profiles:
   # Network filtering with address requirements
   address_filtering:
     mode: "resolved"
-    log_level: "info"
-    restore_on_exit: false
+    log:
+      level: "info"
+    features:
+      restore_on_exit: false
     filters:
       # Only networks with assigned addresses
       - type: "assigned"
@@ -133,12 +159,12 @@ profiles:
           - value: "10.*"
             logic: "or"
           - value: "192.168.*"
-            logic: "or"
 
   # Interface-based advanced filtering
   interface_advanced:
     mode: "networkd"
-    restore_on_exit: false
+    features:
+      restore_on_exit: false
     filters:
       # Include specific interfaces
       - type: "interface"
@@ -154,7 +180,8 @@ profiles:
   # Route-based filtering
   route_filtering:
     mode: "networkd"
-    restore_on_exit: false
+    features:
+      restore_on_exit: false
     filters:
       # Networks with specific routes
       - type: "route"
@@ -166,6 +193,6 @@ profiles:
 
   # One-shot mode for manual execution
   oneshot:
-    daemon_mode: false  # Explicitly disable daemon mode
-    log_level: "info"
-    restore_on_exit: false
+    daemon_mode: false  # Explicitly disable daemon mode (legacy, see README)
+    log_level: "info"   # Legacy, see README
+    restore_on_exit: false # Legacy, see README

@@ -3,105 +3,208 @@
     inputs.zeroflex.nixosModules.default
   ];
 
-  # Include the package in system packages if you want to use it manually
-  # without the systemd service
   environment.systemPackages = [
     inputs.zeroflex.packages.${pkgs.system}.zeroflex
   ];
 
   services.zeroflex = {
-    # Enable the ZeroFlex module
     enable = true;
 
-    # Basic settings
-    mode = "auto";                              # Options: "auto", "networkd", "resolved"
-    logLevel = "info";                          # Logging level: "info" or "debug"
-    logTimestamps = false;                      # Add timestamps to log entries
-
-    # Select a specific profile to use (must match a profile name defined below)
-    profile = "nfrastack";                      # Use this profile when running the service
-
-    # DNS-related settings
-    addReverseDomains = false;                  # Add ip6.arpa and in-addr.arpa search domains
-    dnsOverTLS = false;                         # Use DNS-over-TLS when available
-    multicastDNS = false;                       # Enable mDNS resolution on ZeroTier interfaces
-
-    # System behavior settings
-    autoRestart = true;                         # Restart systemd-networkd when changes occur
-    reconcile = true;                           # Remove left networks from systemd-networkd config
-    restoreOnExit = false;                      # Restore DNS for all managed interfaces on exit
-
-    # Interface watch settings
-    interfaceWatch = {
-      mode = "event";                           # Options: "event", "poll", "off"
+    # Default (top-level) config
+    mode = "auto";
+    log = {
+      level = "info";
+      type = "console";
+      file = "/var/log/zeroflex.log";
+      timestamps = false;
+    };
+    daemon = {
+      enabled = true;
+      poll_interval = "1m";
+    };
+    client = {
+      host = "http://localhost";
+      port = 9993;
+      token_file = "/var/lib/zerotier-one/authtoken.secret";
+    };
+    features = {
+      dns_over_tls = false;
+      add_reverse_domains = false;
+      multicast_dns = false;
+      restore_on_exit = false;
+    };
+    interface_watch = {
+      mode = "event";
       retry = {
-        count = 10;                             # Number of retry attempts on failure
-        delay = "10s";                          # Delay between retries
+        count = 3;
+        delay = "2s";
       };
+    };
+    networkd = {
+      auto_restart = true;
+      reconcile = true;
     };
 
     # Example profiles using advanced filtering
     profiles = {
-      # nfrastack profile with network name-based filtering
-      nfrastack = {
-        dnsOverTLS = true;
-        logLevel = "debug";
-        restoreOnExit = true;                   # Example: enable DNS restore for this profile
-        filters = [
-          {
-            type = "network";
-            conditions = [
-              { value = "network1"; logic = "or"; }
-              { value = "network2"; logic = "or"; }
-            ];
-          }
-        ];
-      };
-
-      # Home profile with interface-based filtering
-      home = {
-        multicastDNS = true;                        # Enable mDNS for home network
+      development = {
+        log.level = "debug";
+        log.timestamps = true;
+        daemon.enabled = true;
+        daemon.poll_interval = "30s";
+        interface_watch.mode = "event";
+        interface_watch.retry.count = 3;
+        interface_watch.retry.delay = "2s";
+        features.restore_on_exit = false;
         filters = [
           {
             type = "interface";
             conditions = [
-              { value = "ztabcd1234"; }             # Include only this specific interface
+              { value = "zt12345678"; logic = "or"; }
+              { value = "zt87654321"; logic = "or"; }
             ];
           }
         ];
       };
-
-      # Network ID-based filtering example
-      networkIDs = {
-        autoRestart = false;                        # Don't auto-restart services
+      production = {
+        mode = "networkd";
+        log.level = "info";
+        daemon.enabled = true;
+        daemon.poll_interval = "5m";
+        networkd.auto_restart = true;
+        networkd.reconcile = true;
+        interface_watch.mode = "poll";
+        interface_watch.retry.count = 2;
+        interface_watch.retry.delay = "1s";
+        features.restore_on_exit = false;
+        filters = [
+          {
+            type = "network";
+            conditions = [
+              { value = "prod_network"; logic = "or"; }
+              { value = "mgmt_network"; logic = "or"; }
+            ];
+          }
+          {
+            type = "network";
+            operation = "AND";
+            negate = true;
+            conditions = [
+              { value = "test_network"; }
+            ];
+          }
+        ];
+      };
+      desktop = {
+        mode = "resolved";
+        log.level = "info";
+        features.add_reverse_domains = true;
+        features.restore_on_exit = false;
         filters = [
           {
             type = "network_id";
             conditions = [
-              { value = "a09acf0233e5c609"; }       # Include by ZeroTier network ID
+              { value = "a1b2c3d4e5f6g7h8"; logic = "or"; }
+              { value = "h8g7f6e5d4c3b2a1"; logic = "or"; }
             ];
           }
         ];
       };
-
-      # Example including all networks (no filters)
-      allNetworks = {
-        # No filters array means process all networks
+      daemon_simple = {
+        daemon.enabled = true;
+        daemon.poll_interval = "2m";
+        log.level = "info";
+        features.restore_on_exit = false;
       };
-
-      # Example excluding specific networks
-      excludeSpecific = {
+      advanced_filtering = {
+        mode = "networkd";
+        log.level = "debug";
+        features.restore_on_exit = false;
         filters = [
           {
-            type = "network";
-            negate = true;                          # Exclude instead of include
+            type = "name";
+            operation = "AND";
             conditions = [
-              { value = "network3"; logic = "or"; }
-              { value = "network4"; logic = "or"; }
+              { value = "prod*"; logic = "or"; }
+              { value = "mgmt*"; logic = "or"; }
+            ];
+          }
+          {
+            type = "online";
+            operation = "AND";
+            conditions = [
+              { value = "true"; }
+            ];
+          }
+          {
+            type = "name";
+            operation = "AND";
+            negate = true;
+            conditions = [
+              { value = "*test*"; }
             ];
           }
         ];
-      } ;
+      };
+      address_filtering = {
+        mode = "resolved";
+        log.level = "info";
+        features.restore_on_exit = false;
+        filters = [
+          {
+            type = "assigned";
+            conditions = [
+              { value = "true"; }
+            ];
+          }
+          {
+            type = "address";
+            operation = "AND";
+            conditions = [
+              { value = "10.*"; logic = "or"; }
+              { value = "192.168.*"; }
+            ];
+          }
+        ];
+      };
+      interface_advanced = {
+        mode = "networkd";
+        features.restore_on_exit = false;
+        filters = [
+          {
+            type = "interface";
+            conditions = [
+              { value = "zt*"; }
+            ];
+          }
+          {
+            type = "interface";
+            operation = "AND";
+            negate = true;
+            conditions = [
+              { value = "*test*"; }
+            ];
+          }
+        ];
+      };
+      route_filtering = {
+        mode = "networkd";
+        features.restore_on_exit = false;
+        filters = [
+          {
+            type = "route";
+            conditions = [
+              { value = "0.0.0.0/0"; logic = "or"; }
+              { value = "10.0.0.0/8"; logic = "or"; }
+            ];
+          }
+        ];
+      };
+      oneshot = {
+        daemon.enabled = false;
+        log.level = "info";
+        features.restore_on_exit = false;
+      };
     };
   };
 }

@@ -43,15 +43,15 @@ func (n *NetworkdMode) GetMode() string {
 
 // Run executes the networkd mode logic
 func (n *NetworkdMode) Run(ctx context.Context) error {
-	logger := log.NewScopedLogger("[modes/networkd]", n.GetConfig().Default.LogLevel)
+	logger := log.NewScopedLogger("[modes/networkd]", n.GetConfig().Default.Log.Level)
 	logger.Trace(">>> NetworkdMode.Run() started")
 	logger.Debug("Running in networkd mode (dry-run: %t)", n.IsDryRun())
 
 	// Log configuration details
 	n.LogConfiguration()
 	logger.Debug("DNS settings - OverTLS: %t, AutoRestart: %t, AddReverseDomains: %t, MulticastDNS: %t, Reconcile: %t",
-		n.GetConfig().Default.DNSOverTLS, n.GetConfig().Default.AutoRestart, n.GetConfig().Default.AddReverseDomains,
-		n.GetConfig().Default.MulticastDNS, n.GetConfig().Default.Reconcile)
+		n.GetConfig().Default.Features.DNSOverTLS, n.GetConfig().Default.Networkd.AutoRestart, n.GetConfig().Default.Features.AddReverseDomains,
+		n.GetConfig().Default.Features.MulticastDNS, n.GetConfig().Default.Networkd.Reconcile)
 
 	// Use BaseMode.ProcessNetworks for all network fetching, logging, and filtering
 	networks, err := n.ProcessNetworks(ctx)
@@ -78,8 +78,8 @@ func (n *NetworkdMode) processNetworks(ctx context.Context, networks *service.Ge
 	logger := log.NewScopedLogger("[modes/networkd]", "info")
 	logger.Trace("processNetworks called")
 	// Call the existing networkd implementation directly
-	RunNetworkdMode(networks, n.GetConfig().Default.AddReverseDomains, n.GetConfig().Default.AutoRestart,
-		n.GetConfig().Default.DNSOverTLS, n.IsDryRun(), n.GetConfig().Default.MulticastDNS, n.GetConfig().Default.Reconcile)
+	RunNetworkdMode(networks, n.GetConfig().Default.Features.AddReverseDomains, n.GetConfig().Default.Networkd.AutoRestart,
+		n.GetConfig().Default.Features.DNSOverTLS, n.IsDryRun(), n.GetConfig().Default.Features.MulticastDNS, n.GetConfig().Default.Networkd.Reconcile)
 
 	return nil
 }

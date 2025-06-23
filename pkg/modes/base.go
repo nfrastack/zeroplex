@@ -37,17 +37,17 @@ func NewBaseMode(cfg config.Config, dryRun bool, mode string) *BaseMode {
 
 // FetchNetworks retrieves networks from ZeroTier API
 func (b *BaseMode) FetchNetworks(ctx context.Context) (*service.GetNetworksResponse, error) {
-	logger := log.NewScopedLogger("[api]", b.cfg.Default.LogLevel)
+	logger := log.NewScopedLogger("[api]", b.cfg.Default.Log.Level)
 
 	// Create API client
-	sAPI, err := client.NewServiceAPI(b.cfg.Default.TokenFile)
+	sAPI, err := client.NewServiceAPI(b.cfg.Default.Client.TokenFile)
 	if err != nil {
 		logger.Error("Failed to create service API client: %v", err)
 		return nil, fmt.Errorf("failed to create service API client: %w", err)
 	}
 
 	// Create ZeroTier client
-	ztBaseURL := fmt.Sprintf("%s:%d", b.cfg.Default.Host, b.cfg.Default.Port)
+	ztBaseURL := fmt.Sprintf("%s:%d", b.cfg.Default.Client.Host, b.cfg.Default.Client.Port)
 	logger.Debug("Creating ZeroTier client with URL: %s", ztBaseURL)
 	ztClient, err := service.NewClient(ztBaseURL, service.WithHTTPClient(sAPI))
 	if err != nil {
@@ -97,7 +97,7 @@ func (b *BaseMode) ApplyFilters(networks *service.GetNetworksResponse) {
 
 // LogNetworkDiscovery logs the network discovery process
 func (b *BaseMode) LogNetworkDiscovery(networks *service.GetNetworksResponse, preFilter bool) {
-	logger := log.NewScopedLogger(fmt.Sprintf("[modes/%s]", b.mode), b.cfg.Default.LogLevel)
+	logger := log.NewScopedLogger(fmt.Sprintf("[modes/%s]", b.mode), b.cfg.Default.Log.Level)
 
 	if preFilter {
 		logger.Debug("Retrieved %d networks from ZeroTier", len(*networks.JSON200))
@@ -142,9 +142,9 @@ func (b *BaseMode) LogNetworkDiscovery(networks *service.GetNetworksResponse, pr
 
 // LogConfiguration logs the configuration details
 func (b *BaseMode) LogConfiguration() {
-	logger := log.NewScopedLogger("[config]", b.cfg.Default.LogLevel)
+	logger := log.NewScopedLogger("[config]", b.cfg.Default.Log.Level)
 	logger.Debug("Host: %s, Port: %d, TokenFile: %s",
-		b.cfg.Default.Host, b.cfg.Default.Port, b.cfg.Default.TokenFile)
+		b.cfg.Default.Client.Host, b.cfg.Default.Client.Port, b.cfg.Default.Client.TokenFile)
 }
 
 // GetConfig returns the configuration
@@ -204,7 +204,7 @@ func (b *BaseMode) GetDNSDomain(network service.Network) string {
 
 // ProcessNetworks handles the common network processing workflow
 func (b *BaseMode) ProcessNetworks(ctx context.Context) (*service.GetNetworksResponse, error) {
-	logger := log.NewScopedLogger(fmt.Sprintf("[modes/%s]", b.mode), b.cfg.Default.LogLevel)
+	logger := log.NewScopedLogger(fmt.Sprintf("[modes/%s]", b.mode), b.cfg.Default.Log.Level)
 
 	// Log configuration
 	b.LogConfiguration()

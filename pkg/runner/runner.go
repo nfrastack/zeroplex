@@ -7,10 +7,10 @@ package runner
 import (
 	"zeroflex/pkg/config"
 	"zeroflex/pkg/daemon"
+	"zeroflex/pkg/dns"
 	"zeroflex/pkg/log"
 	"zeroflex/pkg/modes"
 	"zeroflex/pkg/utils"
-	"zeroflex/pkg/dns"
 
 	"context"
 	"fmt"
@@ -36,7 +36,7 @@ func New(cfg config.Config, dryRun bool) *Runner {
 	return &Runner{
 		cfg:    cfg,
 		dryRun: dryRun,
-		logger: log.NewScopedLogger("[runner]", cfg.Default.LogLevel),
+		logger: log.NewScopedLogger("[runner]", cfg.Default.Log.Level),
 	}
 }
 
@@ -129,27 +129,27 @@ func (r *Runner) RunOnce() error {
 
 // runDaemon starts the application in daemon mode
 func (r *Runner) runDaemon() error {
-	r.logger.Verbose("Running in daemon mode with interval: %s", r.cfg.Default.PollInterval)
+	r.logger.Verbose("Running in daemon mode with interval: %s", r.cfg.Default.Daemon.PollInterval)
 
 	// Start interface watcher if enabled
 	r.logger.Debug("Interface watch mode: %s", r.cfg.Default.InterfaceWatch.Mode)
 	if r.cfg.Default.InterfaceWatch.Mode == "event" {
 
 		r.ifaceWatchStop = make(chan struct{})
-		err := utils.WatchInterfacesNetlink(r.handleInterfaceEvent, r.ifaceWatchStop, r.cfg.Default.LogLevel)
+		err := utils.WatchInterfacesNetlink(r.handleInterfaceEvent, r.ifaceWatchStop, r.cfg.Default.Log.Level)
 		if err != nil {
 			r.logger.Error("Netlink watcher failed: %v. Falling back to polling mode.", err)
-			go utils.PollInterfaces(5*time.Second, r.handleInterfaceEvent, r.ifaceWatchStop, r.cfg.Default.LogLevel)
+			go utils.PollInterfaces(5*time.Second, r.handleInterfaceEvent, r.ifaceWatchStop, r.cfg.Default.Log.Level)
 		}
 	} else if r.cfg.Default.InterfaceWatch.Mode == "poll" {
 		r.ifaceWatchStop = make(chan struct{})
-		go utils.PollInterfaces(5*time.Second, r.handleInterfaceEvent, r.ifaceWatchStop, r.cfg.Default.LogLevel)
+		go utils.PollInterfaces(5*time.Second, r.handleInterfaceEvent, r.ifaceWatchStop, r.cfg.Default.Log.Level)
 		// No error to check for goroutine
 		// Optionally log after a short delay
 	}
 
 	// Parse interval
-	interval, err := time.ParseDuration(r.cfg.Default.PollInterval)
+	interval, err := time.ParseDuration(r.cfg.Default.Daemon.PollInterval)
 	if err != nil {
 		return fmt.Errorf("invalid poll interval: %w", err)
 	}
@@ -171,12 +171,12 @@ func (r *Runner) runDaemon() error {
 	r.logger.Info("Received signal %s, shutting down gracefully...", sig)
 
 	// If restore_on_exit is enabled, restore DNS for all managed interfaces
-	if r.cfg.Default.RestoreOnExit {
+	if r.cfg.Default.Features.RestoreOnExit {
 		r.logger.Info("restore_on_exit enabled: restoring DNS for all managed interfaces...")
 		saved := dns.GetSavedDNSState()
 		for iface := range saved {
 			r.logger.Info("Restoring DNS for interface %s", iface)
-			dns.RestoreSavedDNS(iface, r.cfg.Default.LogLevel)
+			dns.RestoreSavedDNS(iface, r.cfg.Default.Log.Level)
 		}
 	}
 
@@ -191,7 +191,7 @@ func (r *Runner) RunDaemon() error {
 }
 
 func (r *Runner) executeTask(ctx context.Context) error {
-	taskLogger := log.NewScopedLogger("[runner/task]", r.cfg.Default.LogLevel)
+	taskLogger := log.NewScopedLogger("[runner/task]", r.cfg.Default.Log.Level)
 
 	if r.dryRun {
 		taskLogger.Info("DRY RUN MODE: No actual changes will be made")
@@ -235,7 +235,7 @@ func (r *Runner) Stop() {
 func (r *Runner) handleInterfaceEvent(ev utils.InterfaceEvent) {
 	switch ev.Type {
 	case utils.InterfaceRemoved:
-		if dns.RestoreSavedDNS(ev.Name, r.cfg.Default.LogLevel) {
+		if dns.RestoreSavedDNS(ev.Name, r.cfg.Default.Log.Level) {
 			r.logger.Info("Interface %s removed, DNS reverted to original settings", ev.Name)
 		}
 		// Optionally, trigger a poll/update here
@@ -256,7 +256,7 @@ func (r *Runner) ShowStartupBanner() {
 	fmt.Println(" 888   888   888     888     d8(  888  o.  )88b   888 . d8(  888  888   .o8  888 `88b.")
 	fmt.Println("o888o o888o o888o   d888b    `Y888\"\"8o 8\"\"888P'   \"888\" `Y888\"\"8o `Y8bod8P' o888o o888o")
 	fmt.Println()
-	if r.cfg.Default.LogTimestamps {
+	if r.cfg.Default.Log.Timestamps {
 		timestamp := time.Now().Format("2006-01-02 15:04:05")
 		fmt.Printf("%s Starting ZeroTier DNS Companion version: %s\n", timestamp, utils.GetVersion())
 	} else {
