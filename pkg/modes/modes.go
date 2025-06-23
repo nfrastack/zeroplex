@@ -211,13 +211,31 @@ KeepConfiguration=static
 
 var managedZTInterfaces = make(map[string]struct{})
 
-func RunResolvedMode(networks *service.GetNetworksResponse, addReverseDomains, dryRun bool, logLevel string) {
+func RunResolvedMode(networks *service.GetNetworksResponse, addReverseDomains, dnsOverTLS, multicastDNS, dryRun bool, logLevel string) {
 	logger := log.NewScopedLogger("[resolved]", logLevel)
 
 	if !utils.CommandExists("resolvectl") {
 		utils.ErrorHandler("resolvectl is required for systemd-resolved but is not available on this system", nil, true)
 	}
 	logger.Trace("resolvectl is available for systemd-resolved commands")
+
+	if dnsOverTLS {
+		logger.Info("DNS-over-TLS requested for systemd-resolved mode (experimental)")
+		if !dryRun {
+			// Attempt to enable DNS-over-TLS for each interface (if supported)
+			// systemd-resolved supports DNSOverTLS=opportunistic|yes|no in .network files, but not via resolvectl
+			logger.Warn("DNS-over-TLS cannot be set via resolvectl; please configure DNSOverTLS= in .network files or systemd-resolved config if needed.")
+		}
+	}
+
+	if multicastDNS {
+		logger.Info("Multicast DNS (mDNS) requested for systemd-resolved mode (experimental)")
+		if !dryRun {
+			// Attempt to enable mDNS for each interface (if supported)
+			// systemd-resolved supports MulticastDNS= in .network files, not via resolvectl
+			logger.Warn("Multicast DNS cannot be set via resolvectl; please configure MulticastDNS= in .network files or systemd-resolved config if needed.")
+		}
+	}
 
 	currentZT := make(map[string]struct{})
 	for _, network := range *networks.JSON200 {
@@ -271,6 +289,34 @@ func RunResolvedMode(networks *service.GetNetworksResponse, addReverseDomains, d
 			dns.SaveCurrentDNSIfNeeded(interfaceName, logLevel)
 			managedZTInterfaces[interfaceName] = struct{}{}
 			dns.ConfigureDNSAndSearchDomains(interfaceName, dnsServers, searchKeys, dryRun, logLevel)
+
+			// --- New: Set mDNS and DNS-over-TLS via resolvectl ---
+			if !dryRun {
+				// mDNS
+				mdnsValue := "no"
+				if multicastDNS {
+					mdnsValue = "yes"
+				}
+				if out, err := utils.ExecuteCommand("resolvectl", "mdns", interfaceName, mdnsValue); err != nil {
+					logger.Warn("Failed to set mDNS (%s) for %s: %v", mdnsValue, interfaceName, err)
+				} else {
+					logger.Info("Set mDNS (%s) for %s: %s", mdnsValue, interfaceName, out)
+				}
+
+				// DNS-over-TLS
+				dotValue := "no"
+				if dnsOverTLS {
+					dotValue = "yes"
+				}
+				if out, err := utils.ExecuteCommand("resolvectl", "dnsovertls", interfaceName, dotValue); err != nil {
+					logger.Warn("Failed to set DNS-over-TLS (%s) for %s: %v", dotValue, interfaceName, err)
+				} else {
+					logger.Info("Set DNS-over-TLS (%s) for %s: %s", dotValue, interfaceName, out)
+				}
+			} else {
+				logger.Info("[dry-run] Would set mDNS (%v) and DNS-over-TLS (%v) for %s", multicastDNS, dnsOverTLS, interfaceName)
+			}
+			// --- End new code ---
 		}
 	}
 }
