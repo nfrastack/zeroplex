@@ -6,6 +6,7 @@ package main
 
 import (
 	"zeroplex/pkg/app"
+	"zeroplex/pkg/cli"
 )
 
 // Version information
@@ -15,6 +16,8 @@ var (
 )
 
 func main() {
+	// Parse flags ONCE at program start
+	cli.ParseFlags()
 	app.Version = Version
 	app.New().Run()
 }
