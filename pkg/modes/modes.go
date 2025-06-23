@@ -299,17 +299,19 @@ func RunResolvedMode(networks *service.GetNetworksResponse, addReverseDomains, d
 				// Query current mDNS setting
 				currentMDNS := ""
 				if out, err := utils.ExecuteCommand("resolvectl", "mdns", interfaceName); err == nil {
-					currentMDNS = strings.TrimSpace(out)
-					logger.Trace("Current mDNS for %s: %s", interfaceName, currentMDNS)
+					currentMDNS = parseResolvectlStatus(out)
+					logger.Trace("Current mDNS for %s (get): %s", interfaceName, currentMDNS)
 				}
+				logger.Debug("Checking mDNS for %s: current=%s, desired=%s", interfaceName, currentMDNS, mdnsValue)
 				if currentMDNS != mdnsValue {
+					logger.Debug("Setting mDNS for %s: %s -> %s", interfaceName, currentMDNS, mdnsValue)
 					logger.Trace("Running: resolvectl mdns %s %s", interfaceName, mdnsValue)
 					if out, err := utils.ExecuteCommand("resolvectl", "mdns", interfaceName, mdnsValue); err != nil {
 						logger.Warn("Failed to set mDNS (%s) for %s: %v", mdnsValue, interfaceName, err)
-					} else {
+					} else if strings.TrimSpace(out) != "" {
 						logger.Trace("resolvectl mdns output: %s", out)
-						logger.Verbose("Set mDNS (%s) for %s", mdnsValue, interfaceName)
 					}
+					logger.Verbose("Set mDNS (%s) for %s", mdnsValue, interfaceName)
 				} else {
 					logger.Trace("mDNS for %s already set to %s, no change needed", interfaceName, mdnsValue)
 				}
@@ -321,17 +323,19 @@ func RunResolvedMode(networks *service.GetNetworksResponse, addReverseDomains, d
 				}
 				currentDOT := ""
 				if out, err := utils.ExecuteCommand("resolvectl", "dnsovertls", interfaceName); err == nil {
-					currentDOT = strings.TrimSpace(out)
-					logger.Trace("Current DNS-over-TLS for %s: %s", interfaceName, currentDOT)
+					currentDOT = parseResolvectlStatus(out)
+					logger.Trace("Current DNS-over-TLS for %s (get): %s", interfaceName, currentDOT)
 				}
+				logger.Debug("Checking DNS-over-TLS for %s: current=%s, desired=%s", interfaceName, currentDOT, dotValue)
 				if currentDOT != dotValue {
+					logger.Debug("Setting DNS-over-TLS for %s: %s -> %s", interfaceName, currentDOT, dotValue)
 					logger.Trace("Running: resolvectl dnsovertls %s %s", interfaceName, dotValue)
 					if out, err := utils.ExecuteCommand("resolvectl", "dnsovertls", interfaceName, dotValue); err != nil {
 						logger.Warn("Failed to set DNS-over-TLS (%s) for %s: %v", dotValue, interfaceName, err)
-					} else {
+					} else if strings.TrimSpace(out) != "" {
 						logger.Trace("resolvectl dnsovertls output: %s", out)
-						logger.Verbose("Set DNS-over-TLS (%s) for %s", dotValue, interfaceName)
 					}
+					logger.Verbose("Set DNS-over-TLS (%s) for %s", dotValue, interfaceName)
 				} else {
 					logger.Trace("DNS-over-TLS for %s already set to %s, no change needed", interfaceName, dotValue)
 				}
@@ -341,4 +345,14 @@ func RunResolvedMode(networks *service.GetNetworksResponse, addReverseDomains, d
 			// --- End new code ---
 		}
 	}
+}
+
+// parseResolvectlStatus extracts the value (e.g. "no" or "yes") from the output of resolvectl mdns/dnsovertls
+func parseResolvectlStatus(out string) string {
+	// Example: "Link 45 (ztu6gwcx54): no"
+	parts := strings.Split(out, ":")
+	if len(parts) > 1 {
+		return strings.TrimSpace(parts[1])
+	}
+	return strings.TrimSpace(out)
 }
