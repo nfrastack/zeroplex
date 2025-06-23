@@ -76,38 +76,17 @@ func RestoreSavedDNS(interfaceName string, logLevel string) bool {
 	}
 	logger.Info("Restoring original DNS/search domains for %s: DNS=%v, Search=%v", interfaceName, saved.DNS, saved.Search)
 
-	noSuchDevice := false
-	if len(saved.DNS) > 0 {
-		args := append([]string{"dns", interfaceName}, saved.DNS...)
-		_, err := utils.ExecuteCommand("resolvectl", args...)
-		if err != nil {
-			errStr := err.Error()
-			if strings.Contains(errStr, "No such device") {
-				logger.Warn("Interface %s is gone (No such device) while restoring DNS; skipping restore.", interfaceName)
-				noSuchDevice = true
-			} else {
-				logger.Warn("Failed to restore DNS for %s: %v", interfaceName, err)
-			}
+	// Use resolvectl revert for robust cleanup
+	_, err := utils.ExecuteCommand("resolvectl", "revert", interfaceName)
+	if err != nil {
+		if strings.Contains(err.Error(), "No such device") {
+			logger.Warn("Interface %s is gone (No such device) while reverting; skipping restore.", interfaceName)
+			return false
 		}
-	}
-	if !noSuchDevice && len(saved.Search) > 0 {
-		args := append([]string{"domain", interfaceName}, saved.Search...)
-		_, err := utils.ExecuteCommand("resolvectl", args...)
-		if err != nil {
-			errStr := err.Error()
-			if strings.Contains(errStr, "No such device") {
-				logger.Warn("Interface %s is gone (No such device) while restoring search domains; skipping restore.", interfaceName)
-				noSuchDevice = true
-			} else {
-				logger.Warn("Failed to restore search domains for %s: %v", interfaceName, err)
-			}
-		}
-	}
-	if noSuchDevice {
-		logger.Verbose("Restore skipped for %s because interface is gone.", interfaceName)
+		logger.Warn("Failed to revert DNS settings for %s: %v", interfaceName, err)
 		return false
 	}
-	logger.Info("Restored DNS/search domains for %s", interfaceName)
+	logger.Info("Reverted all temporary DNS settings for %s using 'resolvectl revert'", interfaceName)
 	return true
 }
 
