@@ -5,8 +5,8 @@
 package filters
 
 import (
-	"zeroflex/pkg/config"
-	"zeroflex/pkg/log"
+	"zeroplex/pkg/config"
+	"zeroplex/pkg/log"
 
 	"encoding/json"
 	"fmt"

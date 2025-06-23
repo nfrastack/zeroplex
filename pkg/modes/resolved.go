@@ -5,10 +5,10 @@
 package modes
 
 import (
-	"zeroflex/pkg/config"
-	"zeroflex/pkg/dns"
-	"zeroflex/pkg/log"
-	"zeroflex/pkg/utils"
+	"zeroplex/pkg/config"
+	"zeroplex/pkg/dns"
+	"zeroplex/pkg/log"
+	"zeroplex/pkg/utils"
 
 	"context"
 	"fmt"

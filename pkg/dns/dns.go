@@ -5,8 +5,8 @@
 package dns
 
 import (
-	"zeroflex/pkg/log"
-	"zeroflex/pkg/utils"
+	"zeroplex/pkg/log"
+	"zeroplex/pkg/utils"
 
 	"fmt"
 	"math"

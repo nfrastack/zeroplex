@@ -1,5 +1,5 @@
-BINARY_NAME := zeroflex
-BUILD_DIR := ./cmd/zeroflex
+BINARY_NAME := zeroplex
+BUILD_DIR := ./cmd/zeroplex
 GO := go
 LDFLAGS := -s -w
 VERSION := $(shell [ -n "$$ZTDNSCOMPANION_VERSION" ] && echo "$$ZTDNSCOMPANION_VERSION" || (git describe --tags --exact-match 2>/dev/null || git describe --always --dirty|| echo "dev"))

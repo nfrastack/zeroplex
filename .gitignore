@@ -9,7 +9,7 @@ devenv.local.nix
 .pre-commit-config.yaml
 
 bin/
-zeroflex.yml
+zeroplex.yml
 result/
 
 .vscode/settings.json

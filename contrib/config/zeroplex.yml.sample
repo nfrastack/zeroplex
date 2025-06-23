@@ -1,4 +1,4 @@
-# ZeroFlex Configuration
+# ZeroPlex Configuration
 
 # Top-level config uses nested keys for all options.
 # See README for full documentation.
@@ -8,7 +8,7 @@ default:
   log:
     level: "info"
     type: "console"         # Options: console, file, both
-    file: "/var/log/zeroflex.log"
+    file: "/var/log/zeroplex.log"
     timestamps: false
   daemon:
     enabled: true           # Default to daemon mode

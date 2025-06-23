@@ -5,8 +5,8 @@
 package cli
 
 import (
-	"zeroflex/pkg/config"
-	"zeroflex/pkg/log"
+	"zeroplex/pkg/config"
+	"zeroplex/pkg/log"
 
 	"flag"
 	"fmt"
@@ -56,7 +56,7 @@ func ParseFlags() (*Flags, map[string]bool) {
 		HelpShort:                flag.Bool("h", false, "Show help message and exit (alias)"),
 		AddReverseDomains:        flag.Bool("add-reverse-domains", false, "Add ip6.arpa and in-addr.arpa search domains. Default: false"),
 		AutoRestart:              flag.Bool("auto-restart", true, "Automatically restart systemd-networkd when things change. Default: true"),
-		ConfigFile:               flag.String("config-file", "/etc/zeroflex.conf", "Path to the configuration file"),
+		ConfigFile:               flag.String("config-file", "/etc/zeroplex.conf", "Path to the configuration file"),
 		ConfigFileC:              flag.String("c", "", "Path to the configuration file (alias)"),
 		ConfigFileShort:          flag.String("config", "", "Path to the configuration file (alias)"),
 		DNSOverTLS:               flag.Bool("dns-over-tls", false, "Automatically prefer DNS-over-TLS. Default: false"),
@@ -65,7 +65,7 @@ func ParseFlags() (*Flags, map[string]bool) {
 		InterfaceWatchMode:       flag.String("interface-watch-mode", "event", "Interface watch mode: event, poll, or off."),
 		InterfaceWatchRetryCount: flag.Int("interface-watch-retry-count", 3, "Number of retries after interface event."),
 		InterfaceWatchRetryDelay: flag.String("interface-watch-retry-delay", "2s", "Delay between interface event retries (e.g., 2s)."),
-		LogFile:                  flag.String("log-file", "/var/log/zeroflex.log", "Log file path if log-type is file or both. Default: /var/log/zeroflex.log."),
+		LogFile:                  flag.String("log-file", "/var/log/zeroplex.log", "Log file path if log-type is file or both. Default: /var/log/zeroplex.log."),
 		LogLevel:                 flag.String("log-level", "info", "Set the logging level (info or debug). Default: info"),
 		LogTimestamps:            flag.Bool("log-timestamps", false, "Enable timestamps in logs. Default: false"),
 		LogType:                  flag.String("log-type", "console", "Log output type: console, file, or both. Default: console."),

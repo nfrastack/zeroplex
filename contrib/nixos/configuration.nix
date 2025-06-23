@@ -1,13 +1,13 @@
 {
   imports = [
-    inputs.zeroflex.nixosModules.default
+    inputs.zeroplex.nixosModules.default
   ];
 
   environment.systemPackages = [
-    inputs.zeroflex.packages.${pkgs.system}.zeroflex
+    inputs.zeroplex.packages.${pkgs.system}.zeroplex
   ];
 
-  services.zeroflex = {
+  services.zeroplex = {
     enable = true;
 
     # Default (top-level) config
@@ -15,7 +15,7 @@
     log = {
       level = "info";
       type = "console";
-      file = "/var/log/zeroflex.log";
+      file = "/var/log/zeroplex.log";
       timestamps = false;
     };
     daemon = {

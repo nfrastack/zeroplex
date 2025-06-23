@@ -95,7 +95,7 @@ func DefaultConfig() Config {
 			Log: LogConfig{
 				Level:      "verbose",
 				Type:       "console",
-				File:       "/var/log/zeroflex.log",
+				File:       "/var/log/zeroplex.log",
 				Timestamps: false,
 			},
 			Daemon: DaemonConfig{
@@ -160,7 +160,7 @@ func LoadConfiguration(configFile string) Config {
 		if err == nil {
 			loadedConfig, err := LoadConfig(configFile)
 			if err != nil {
-				if configFile != "/etc/zeroflex.yaml" {
+				if configFile != "/etc/zeroplex.yaml" {
 					fmt.Fprintf(os.Stderr, "ERROR: Configuration file %s not found: %v\n", configFile, err)
 					os.Exit(1)
 				}
@@ -176,7 +176,7 @@ func LoadConfiguration(configFile string) Config {
 
 			return loadedConfig
 		} else if os.IsNotExist(err) {
-			if configFile != "/etc/zeroflex.yaml" {
+			if configFile != "/etc/zeroplex.yaml" {
 				fmt.Fprintf(os.Stderr, "ERROR: Configuration file %s not found: %v\n", configFile, err)
 				os.Exit(1)
 			}

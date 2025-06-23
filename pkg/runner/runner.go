@@ -5,12 +5,12 @@
 package runner
 
 import (
-	"zeroflex/pkg/config"
-	"zeroflex/pkg/daemon"
-	"zeroflex/pkg/dns"
-	"zeroflex/pkg/log"
-	"zeroflex/pkg/modes"
-	"zeroflex/pkg/utils"
+	"zeroplex/pkg/config"
+	"zeroplex/pkg/daemon"
+	"zeroplex/pkg/dns"
+	"zeroplex/pkg/log"
+	"zeroplex/pkg/modes"
+	"zeroplex/pkg/utils"
 
 	"context"
 	"fmt"
@@ -22,7 +22,7 @@ import (
 	"time"
 )
 
-// Runner manages the execution of the ZeroFlex in both one-shot and daemon modes
+// Runner manages the execution of the ZeroPlex in both one-shot and daemon modes
 type Runner struct {
 	cfg            config.Config
 	dryRun         bool

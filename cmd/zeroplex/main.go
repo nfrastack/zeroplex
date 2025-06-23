@@ -5,7 +5,7 @@
 package main
 
 import (
-	"zeroflex/pkg/app"
+	"zeroplex/pkg/app"
 )
 
 // Version information

@@ -1,6 +1,6 @@
 # NixOS
 
-This project provides a Nix flake that allows you to build, run, and configure ZeroFlex. Below are instructions on how to use it within Nix and NixOS.
+This project provides a Nix flake that allows you to build, run, and configure ZeroPlex. Below are instructions on how to use it within Nix and NixOS.
 
 ## Adding as an Input
 
@@ -8,33 +8,33 @@ To use this flake as an input in your own flake, add the following to your `flak
 
 ```nix
 {
-  inputs.zeroflex.url = "github:nfrastack/zeroflex";
+  inputs.zeroplex.url = "github:nfrastack/zeroplex";
 
-  outputs = { self, nixpkgs, zeroflex }: {
-    packages.default = zeroflex.packages.${system}.default;
+  outputs = { self, nixpkgs, zeroplex }: {
+    packages.default = zeroplex.packages.${system}.default;
   };
 }
 ```
 
 ### NixOS Module
 
-This flake provides a NixOS module that allows you to configure and run ZeroFlex as a systemd service. To use it, add the following to your `configuration.nix`:
+This flake provides a NixOS module that allows you to configure and run ZeroPlex as a systemd service. To use it, add the following to your `configuration.nix`:
 
 ```nix
 {
   imports = [
-    inputs.zeroflex.nixosModules.default
+    inputs.zeroplex.nixosModules.default
   ];
 }
 ```
 
 #### Available Options
 
-Here are the available options for the NixOS module (`services.zeroflex`):
+Here are the available options for the NixOS module (`services.zeroplex`):
 
-* `enable` (bool): Enable or disable the ZeroFlex service.
+* `enable` (bool): Enable or disable the ZeroPlex service.
 * `package` (package): The package to use for the service. Default: the flake's Go build.
-* `configFile` (str): Path to the YAML configuration file. Default: `/etc/zeroflex.yml`
+* `configFile` (str): Path to the YAML configuration file. Default: `/etc/zeroplex.yml`
 * `mode` (str): Backend mode. One of `"auto"`, `"networkd"`, or `"resolved"`.
 * `log` (attrs): Logging configuration.
   * `level` (str): Logging level (`"error"`, `"warn"`, `"info"`, `"verbose"`, `"debug"`, `"trace"`).
@@ -61,9 +61,9 @@ Here are the available options for the NixOS module (`services.zeroflex`):
   * `retry` (attrs): Retry configuration.
     * `count` (int): Number of retries after interface event.
     * `delay` (str): Delay between retries (duration string).
-* `profile` (str): The profile to load for the zeroflex service. This should match one of the keys in the `profiles` option. If not specified, the default profile will be used.
+* `profile` (str): The profile to load for the zeroplex service. This should match one of the keys in the `profiles` option. If not specified, the default profile will be used.
 * `profiles` (attrs): Additional named profiles for advanced filtering and configuration. Each profile is a nested attribute set with the same structure as the top-level config. Supports advanced filtering via the `filters` key.
 
 See the [configuration.nix](./configuration.nix) for comprehensive examples of advanced filtering and profile usage.
 
-This setup allows you to fully configure and manage the ZeroFlex service declaratively using NixOS.
+This setup allows you to fully configure and manage the ZeroPlex service declaratively using NixOS.

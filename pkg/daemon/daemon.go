@@ -5,7 +5,7 @@
 package daemon
 
 import (
-	"zeroflex/pkg/log"
+	"zeroplex/pkg/log"
 
 	"context"
 	"fmt"

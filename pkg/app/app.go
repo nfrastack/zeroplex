@@ -5,10 +5,10 @@
 package app
 
 import (
-	"zeroflex/pkg/config"
-	"zeroflex/pkg/log"
-	"zeroflex/pkg/runner"
-	"zeroflex/pkg/utils"
+	"zeroplex/pkg/config"
+	"zeroplex/pkg/log"
+	"zeroplex/pkg/runner"
+	"zeroplex/pkg/utils"
 
 	"flag"
 	"fmt"
@@ -37,7 +37,7 @@ func ValidateAndLoadConfig(configFile string) config.Config {
 	if configFile != "" {
 		tryFiles = append(tryFiles, configFile)
 	} else {
-		tryFiles = append(tryFiles, "./zeroflex.yml", "/etc/zeroflex.yml")
+		tryFiles = append(tryFiles, "./zeroplex.yml", "/etc/zeroplex.yml")
 	}
 
 	var cfg config.Config
@@ -81,12 +81,12 @@ func printCopyrightAndLicense() {
 }
 
 func printStartupVersion(version string) {
-	fmt.Printf("Starting ZeroFlex version: %s\n", version)
+	fmt.Printf("Starting ZeroPlex version: %s\n", version)
 	printCopyrightAndLicense()
 }
 
 func printVersion(version string) {
-	fmt.Printf("ZeroFlex version: %s | © 2025 Nfrastack https://nfrastack.com - BSD-3-Clause License\n", version)
+	fmt.Printf("ZeroPlex version: %s | © 2025 Nfrastack https://nfrastack.com - BSD-3-Clause License\n", version)
 }
 
 // Run starts the application
@@ -159,13 +159,13 @@ func (a *App) parseArgsWithBanner() (config.Config, bool, bool, bool, error) {
 	helpShort := flag.Bool("h", false, "Show help message and exit (alias)")
 	version := flag.Bool("version", false, "Show version and exit")
 	versionShort := flag.Bool("v", false, "Show version and exit (alias)")
-	configFile := flag.String("config-file", "/etc/zeroflex.yml", "Path to the configuration file")
+	configFile := flag.String("config-file", "/etc/zeroplex.yml", "Path to the configuration file")
 	configFileShort := flag.String("config", "", "Path to the configuration file (alias)")
 	configFileC := flag.String("c", "", "Path to the configuration file (alias)")
 	dryRun := flag.Bool("dry-run", false, "Enable dry-run mode. No changes will be made.")
 	mode := flag.String("mode", "", "Mode of operation (networkd, resolved, or auto).")
-	host := flag.String("host", "", "ZeroFlex client host address.")
-	port := flag.Int("port", 0, "ZeroFlex client port number.")
+	host := flag.String("host", "", "ZeroPlex client host address.")
+	port := flag.Int("port", 0, "ZeroPlex client port number.")
 	logLevel := flag.String("log-level", "", "Set the logging level (error, warn, info, verbose, debug, or trace).")
 	logTimestamps := flag.Bool("log-timestamps", true, "Enable timestamps in logs. Default: true")
 	tokenFile := flag.String("token-file", "", "Path to the ZeroTier authentication token file.")
@@ -323,7 +323,7 @@ func (a *App) parseArgsWithBanner() (config.Config, bool, bool, bool, error) {
 	if cfg.Default.Log.Type == "file" || cfg.Default.Log.Type == "both" {
 		logFile := cfg.Default.Log.File
 		if logFile == "" {
-			logFile = "/var/log/zeroflex.log"
+			logFile = "/var/log/zeroplex.log"
 		}
 		f, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err == nil {
@@ -418,8 +418,8 @@ func init() {
 		showStartupBanner("info", false, Version)
 		printCopyrightAndLicense()
 		// Only print version once
-		fmt.Fprintf(flag.CommandLine.Output(), "ZeroFlex version: %s\n\n", getVersionString())
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: zeroflex [options]\n\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "ZeroPlex version: %s\n\n", getVersionString())
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: zeroplex [options]\n\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "General Options:\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--help", "Show help message and exit")
 		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--version", "Print the version and exit")

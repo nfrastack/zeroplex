@@ -18,14 +18,14 @@
       packages = forAllSystems (system:
         let pkgs = nixpkgsFor.${system};
         in {
-          zeroflex = pkgs.buildGoModule {
-            pname = "zeroflex";
+          zeroplex = pkgs.buildGoModule {
+            pname = "zeroplex";
             inherit version;
             src = ./.;
 
             meta = {
               description = "Manage ZeroTier DNS with systemd-resolved or networkd";
-              homepage = "https://github.com/nfrastack/zeroflex";
+              homepage = "https://github.com/nfrastack/zeroplex";
               license = "BSD-3";
               maintainers = [
                 {
@@ -55,11 +55,11 @@
           ];
         });
 
-      defaultPackage = forAllSystems (system: self.packages.${system}.zeroflex);
+      defaultPackage = forAllSystems (system: self.packages.${system}.zeroplex);
 
       nixosModules.default = { config, lib, pkgs, ... }:
         let
-          cfg = config.services.zeroflex;
+          cfg = config.services.zeroplex;
 
           # Utility function to get directory part of path
           getDir = path:
@@ -68,7 +68,7 @@
             in
               if components == null then "." else builtins.head components;
         in {
-          options.services.zeroflex = {
+          options.services.zeroplex = {
             enable = lib.mkEnableOption {
               default = false;
               description = "Enable the ZeroTier DNS Companion module to configure the tool.";
@@ -82,14 +82,14 @@
 
             package = lib.mkOption {
               type = lib.types.package;
-              default = self.packages.${pkgs.system}.zeroflex;
+              default = self.packages.${pkgs.system}.zeroplex;
               description = "ZeroTier DNS Companion package to use.";
             };
 
             configFile = lib.mkOption {
               type = lib.types.str;
-              default = "/etc/zeroflex.yml";
-              description = "Path to the YAML configuration file for ZeroFlex.";
+              default = "/etc/zeroplex.yml";
+              description = "Path to the YAML configuration file for ZeroPlex.";
             };
 
             mode = lib.mkOption {
@@ -112,7 +112,7 @@
                   };
                   file = lib.mkOption {
                     type = lib.types.str;
-                    default = "/var/log/zeroflex.log";
+                    default = "/var/log/zeroplex.log";
                     description = "Set the log file path (used if log type is file or both).";
                   };
                   timestamps = lib.mkOption {
@@ -125,7 +125,7 @@
               default = {
                 level = "verbose";
                 type = "console";
-                file = "/var/log/zeroflex.log";
+                file = "/var/log/zeroplex.log";
                 timestamps = false;
               };
               description = "Logging configuration (level, type, file, timestamps).";
@@ -277,13 +277,13 @@
             profiles = lib.mkOption {
               type = with lib.types; attrsOf (attrsOf anything);
               default = {};
-              description = "Additional profiles for the zeroflex configuration using advanced filtering. Each profile is an attribute set where the key is the profile name and the value is a nested attribute set of options for that profile.";
+              description = "Additional profiles for the zeroplex configuration using advanced filtering. Each profile is an attribute set where the key is the profile name and the value is a nested attribute set of options for that profile.";
             };
 
             profile = lib.mkOption {
               type = lib.types.str;
               default = "";
-              description = "The profile to load for the zeroflex service. This should match one of the keys in the `profiles` option. If not specified, the default profile will be used.";
+              description = "The profile to load for the zeroplex service. This should match one of the keys in the `profiles` option. If not specified, the default profile will be used.";
             };
           };
 
@@ -291,13 +291,13 @@
             environment.systemPackages = [ cfg.package ];
 
             # Always write configuration file when service is enabled
-            system.activationScripts.zeroflex-config = {
+            system.activationScripts.zeroplex-config = {
               text = ''
                 if [ ! -e "${getDir cfg.configFile}" ]; then
                   mkdir -p "${getDir cfg.configFile}"
                 fi
                 cat > ${cfg.configFile} << 'EOC'
-# ZeroFlex Configuration
+# ZeroPlex Configuration
 
 default:
   mode: "${cfg.mode}"
@@ -336,7 +336,7 @@ ${lib.generators.toYAML {} profile}
               deps = [];
             };
 
-            systemd.services.zeroflex = lib.mkIf cfg.service.enable {
+            systemd.services.zeroplex = lib.mkIf cfg.service.enable {
               description = "ZeroTier DNS Companion";
               wantedBy = [ "multi-user.target" ];
               restartTriggers = [
@@ -351,7 +351,7 @@ ${lib.generators.toYAML {} profile}
                     logTimestampsArg = "--log-timestamps=false";
                     bannerArg = "--banner=false";
                     args = lib.strings.concatStringsSep " " (lib.lists.filter (s: s != "") [
-                      "${cfg.package}/bin/zeroflex"
+                      "${cfg.package}/bin/zeroplex"
                       configFileArg
                       profileArg
                       logTimestampsArg
@@ -364,7 +364,7 @@ ${lib.generators.toYAML {} profile}
                 Restart = "always";
                 StandardOutput = "journal";
                 StandardError = "journal";
-                SyslogIdentifier = "zeroflex";
+                SyslogIdentifier = "zeroplex";
               };
             };
           };

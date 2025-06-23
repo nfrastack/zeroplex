@@ -29,13 +29,13 @@ jobs:
 
       - name: Build Binary
         run: |
-          GOARCH=${{ matrix.arch }} GOOS=linux go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o zeroflex_${{ matrix.arch }} ./cmd/zeroflex
+          GOARCH=${{ matrix.arch }} GOOS=linux go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o zeroplex_${{ matrix.arch }} ./cmd/zeroplex
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: zeroflex_${{ matrix.arch }}
-          path: zeroflex_${{ matrix.arch }}
+          name: zeroplex_${{ matrix.arch }}
+          path: zeroplex_${{ matrix.arch }}
 
   release:
     name: Create Release
@@ -46,12 +46,12 @@ jobs:
       - name: Download Build Artifacts (AMD64)
         uses: actions/download-artifact@v4
         with:
-          name: zeroflex_amd64
+          name: zeroplex_amd64
 
       - name: Download Build Artifacts (ARM64)
         uses: actions/download-artifact@v4
         with:
-          name: zeroflex_arm64
+          name: zeroplex_arm64
 
       - name: Create Release
         id: create_release
@@ -70,8 +70,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: zeroflex_amd64
-          asset_name: zeroflex_amd64
+          asset_path: zeroplex_amd64
+          asset_name: zeroplex_amd64
           asset_content_type: application/octet-stream
 
       - name: Upload Release Asset (ARM64)
@@ -80,6 +80,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: zeroflex_arm64
-          asset_name: zeroflex_arm64
+          asset_path: zeroplex_arm64
+          asset_name: zeroplex_arm64
           asset_content_type: application/octet-stream

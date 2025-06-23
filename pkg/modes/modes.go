@@ -5,9 +5,9 @@
 package modes
 
 import (
-	"zeroflex/pkg/dns"
-	"zeroflex/pkg/log"
-	"zeroflex/pkg/utils"
+	"zeroplex/pkg/dns"
+	"zeroplex/pkg/log"
+	"zeroplex/pkg/utils"
 
 	"bytes"
 	"fmt"
@@ -35,7 +35,7 @@ type templateScaffold struct {
 func RunNetworkdMode(networks *service.GetNetworksResponse, addReverseDomains, autoRestart, dnsOverTLS, dryRun, multicastDNS, reconcile bool) {
 	logger := log.NewScopedLogger("[networkd]", "info")
 
-	const fileheader = "--- Managed by zeroflex. Do not remove this comment. ---"
+	const fileheader = "--- Managed by zeroplex. Do not remove this comment. ---"
 	const networkTemplate = `# {{ .FileHeader }}
 [Match]
 Name={{ .ZTInterface }}

@@ -5,9 +5,9 @@
 package modes
 
 import (
-	"zeroflex/pkg/config"
-	"zeroflex/pkg/log"
-	"zeroflex/pkg/utils"
+	"zeroplex/pkg/config"
+	"zeroplex/pkg/log"
+	"zeroplex/pkg/utils"
 
 	"context"
 	"fmt"

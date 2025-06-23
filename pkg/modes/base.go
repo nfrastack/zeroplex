@@ -5,11 +5,11 @@
 package modes
 
 import (
-	"zeroflex/pkg/client"
-	"zeroflex/pkg/config"
-	"zeroflex/pkg/filters"
-	"zeroflex/pkg/log"
-	"zeroflex/pkg/utils"
+	"zeroplex/pkg/client"
+	"zeroplex/pkg/config"
+	"zeroplex/pkg/filters"
+	"zeroplex/pkg/log"
+	"zeroplex/pkg/utils"
 
 	"bytes"
 	"context"

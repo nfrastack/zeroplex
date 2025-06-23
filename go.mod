@@ -1,4 +1,4 @@
-module zeroflex
+module zeroplex
 
 go 1.21.0
 

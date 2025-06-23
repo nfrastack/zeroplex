@@ -1,11 +1,11 @@
 [Unit]
-Description=ZeroFlex
+Description=ZeroPlex
 Requires=zerotier-one.service
 After=zerotier-one.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/zeroflex
+ExecStart=/usr/bin/zeroplex
 
 [Install]
 WantedBy=multi-user.target
