@@ -13,13 +13,18 @@ import (
 	"zeroplex/pkg/utils"
 
 	"context"
+	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/godbus/dbus/v5"
 )
 
 // Runner manages the execution of the ZeroPlex in both one-shot and daemon modes
@@ -42,7 +47,7 @@ func New(cfg config.Config, dryRun bool) *Runner {
 
 // Run executes the application based on configuration
 func (r *Runner) Run() error {
-	r.logger.Info("[debug] Entered Runner.Run()")
+	r.logger.Info("[debug] Entered Runner.Run() (TOP)")
 	r.logger.Trace("Runner.Run() started")
 
 	// Show banner and startup message only when actually running
@@ -55,6 +60,9 @@ func (r *Runner) Run() error {
 		return err
 	}
 	r.logger.Trace("Runtime environment validation passed")
+
+	// Start DNS watchdog if enabled
+	go r.startDNSWatchdog()
 
 	// Auto-detect mode if needed
 	if r.cfg.Default.Mode == "auto" {
@@ -131,10 +139,20 @@ func (r *Runner) RunOnce() error {
 func (r *Runner) runDaemon() error {
 	r.logger.Verbose("Running in daemon mode with interval: %s", r.cfg.Default.Daemon.PollInterval)
 
+	// Start D-Bus sleep/resume watcher with structured logging
+	r.logger.Debug("About to start sleep watcher goroutine (PRE)")
+	go func(logger func(string, ...interface{})) {
+		ctx := context.Background()
+		StartSleepResumeWatcher(ctx, logger, func() {
+			r.logger.Verbose("System resume detected (D-Bus), triggering DNS/interface re-check with backoff")
+			go r.retryUntilDNSOk(context.Background(), "resume event")
+		})
+	}(r.logger.Debug)
+	r.logger.Debug("After starting sleep watcher goroutine (POST)")
+
 	// Start interface watcher if enabled
 	r.logger.Debug("Interface watch mode: %s", r.cfg.Default.InterfaceWatch.Mode)
 	if r.cfg.Default.InterfaceWatch.Mode == "event" {
-
 		r.ifaceWatchStop = make(chan struct{})
 		err := utils.WatchInterfacesNetlink(r.handleInterfaceEvent, r.ifaceWatchStop, r.cfg.Default.Log.Level)
 		if err != nil {
@@ -233,15 +251,89 @@ func (r *Runner) Stop() {
 
 // handleInterfaceEvent is called on interface add/remove/up/down
 func (r *Runner) handleInterfaceEvent(ev utils.InterfaceEvent) {
-	switch ev.Type {
-	case utils.InterfaceRemoved:
-		if dns.RestoreSavedDNS(ev.Name, r.cfg.Default.Log.Level) {
-			r.logger.Info("Interface %s removed, DNS reverted to original settings", ev.Name)
+	isZT := strings.HasPrefix(ev.Name, "zt") // Only act on ZeroTier interfaces
+	if isZT {
+		r.logger.Info("ZeroTier interface %s event (%s), checking readiness and applying DNS if ready", ev.Name, ev.Type)
+		retryCfg := r.cfg.Default.InterfaceWatch.Retry
+		var backoffSeq []time.Duration
+		if len(retryCfg.Backoff) > 0 {
+			for _, s := range retryCfg.Backoff {
+				d, err := time.ParseDuration(s)
+				if err == nil {
+					backoffSeq = append(backoffSeq, d)
+				}
+			}
 		}
-		// Optionally, trigger a poll/update here
-	case utils.InterfaceAdded:
-		r.logger.Info("Interface %s added, triggering DNS update", ev.Name)
-		// Optionally, trigger a poll/update here
+		maxTotal := 2 * time.Minute
+		if retryCfg.MaxTotal != "" {
+			if d, err := time.ParseDuration(retryCfg.MaxTotal); err == nil {
+				maxTotal = d
+			}
+		}
+		startTime := time.Now()
+		var lastErr error
+		attempt := 0
+		for {
+			if len(backoffSeq) > 0 {
+				if attempt >= len(backoffSeq) {
+					break
+				}
+			} else {
+				if attempt > retryCfg.Count {
+					break
+				}
+			}
+			if time.Since(startTime) > maxTotal {
+				r.logger.Warn("ZeroTier interface %s did not become ready after %.0fs (max_total), skipping DNS apply", ev.Name, maxTotal.Seconds())
+				break
+			}
+			ready, status, err := isZTInterfaceReady(r.cfg, ev.Name)
+			if err != nil {
+				lastErr = err
+				// Log detailed diagnostics for readiness errors
+				if status == "iface_not_found" {
+					r.logger.Warn("[retry %d] Interface %s not found: %v", attempt+1, ev.Name, err)
+				} else if status == "iface_down" {
+					r.logger.Warn("[retry %d] Interface %s exists but is down", attempt+1, ev.Name)
+				} else if status == "api_unreachable" {
+					r.logger.Warn("[retry %d] ZeroTier API unreachable for %s: %v", attempt+1, ev.Name, err)
+				} else {
+					r.logger.Warn("[retry %d] Error checking ZeroTier interface %s readiness (status=%s): %v", attempt+1, ev.Name, status, err)
+				}
+			} else if ready {
+				r.logger.Info("ZeroTier interface %s is ready (status=%s), applying DNS", ev.Name, status)
+				_ = r.executeTask(context.Background())
+				r.logger.Info("DNS applied for ZeroTier interface %s after %d attempt(s), total wait %.1fs", ev.Name, attempt+1, time.Since(startTime).Seconds())
+				return
+			} else {
+				if attempt == 0 || (len(backoffSeq) > 0 && attempt == len(backoffSeq)-1) || (len(backoffSeq) == 0 && attempt == retryCfg.Count) || attempt%3 == 0 {
+					r.logger.Debug("[retry %d] ZeroTier interface %s not ready (status=%s), will retry", attempt+1, ev.Name, status)
+				}
+			}
+			var d time.Duration
+			if len(backoffSeq) > 0 {
+				d = backoffSeq[attempt]
+			} else {
+				baseDelay, err := time.ParseDuration(retryCfg.Delay)
+				if err != nil || baseDelay <= 0 {
+					baseDelay = 2 * time.Second
+				}
+				maxDelay := 1 * time.Minute
+				d = baseDelay << attempt // exponential backoff
+				if d > maxDelay {
+					d = maxDelay
+				}
+			}
+			time.Sleep(d)
+			attempt++
+		}
+		if lastErr != nil {
+			r.logger.Warn("ZeroTier interface %s did not become ready after %d retries, last error: %v", ev.Name, attempt, lastErr)
+		} else {
+			r.logger.Warn("ZeroTier interface %s did not become ready after %d retries, skipping DNS apply", ev.Name, attempt)
+		}
+	} else {
+		r.logger.Trace("Non-ZeroTier interface %s event (%s), ignoring", ev.Name, ev.Type)
 	}
 }
 
@@ -258,8 +350,326 @@ func (r *Runner) ShowStartupBanner() {
 	fmt.Println()
 	if r.cfg.Default.Log.Timestamps {
 		timestamp := time.Now().Format("2006-01-02 15:04:05")
-		fmt.Printf("%s Starting ZeroTier DNS Companion version: %s\n", timestamp, utils.GetVersion())
+		fmt.Printf("%s Starting ZeroPlex version: %s\n", timestamp, utils.GetVersion())
 	} else {
-		fmt.Printf("Starting ZeroTier DNS Companion version: %s\n", utils.GetVersion())
+		fmt.Printf("Starting ZeroPlex version: %s\n", utils.GetVersion())
 	}
+}
+
+// startDNSWatchdog launches a goroutine that pings the watchdog_ip and triggers a poll on failure
+func (r *Runner) startDNSWatchdog() {
+	cfg := r.cfg.Default.Features
+	interval := time.Minute
+	if cfg.WatchdogInterval != "" {
+		if d, err := time.ParseDuration(cfg.WatchdogInterval); err == nil {
+			interval = d
+		}
+	}
+	backoff := []time.Duration{10 * time.Second, 20 * time.Second, 30 * time.Second}
+	if len(cfg.WatchdogBackoff) > 0 {
+		parsed := []time.Duration{}
+		for _, s := range cfg.WatchdogBackoff {
+			if d, err := time.ParseDuration(s); err == nil {
+				parsed = append(parsed, d)
+			}
+		}
+		if len(parsed) > 0 {
+			backoff = parsed
+		}
+	}
+	var watchdogIP string = cfg.WatchdogIP
+	if watchdogIP == "" {
+		if len(r.cfg.Default.Client.Host) > 0 {
+			watchdogIP = r.cfg.Default.Client.Host
+		}
+	}
+	watchdogHostname := cfg.WatchdogHostname
+	watchdogExpectedIP := cfg.WatchdogExpectedIP
+	if strings.Contains(watchdogHostname, "%domain%") {
+		networks, err := getZTNetworksDomains(r.cfg)
+		if err != nil {
+			r.logger.Warn("DNS watchdog: failed to get ZeroTier domains for %%domain%% substitution: %v", err)
+			return
+		}
+		if len(networks) == 0 {
+			r.logger.Warn("DNS watchdog: no ZeroTier networks with domains found for %%domain%% substitution")
+			return
+		}
+		for _, netinfo := range networks {
+			host := strings.ReplaceAll(watchdogHostname, "%domain%", netinfo.Domain)
+			r.logger.Info("DNS watchdog (hostname) for interface %s: Hostname=%s, ExpectedIP=%s, interval=%s, backoff=%v", netinfo.Interface, host, watchdogExpectedIP, interval, backoff)
+			go func(host, expectedIP, iface string) {
+				for {
+					ok := false
+					ips, err := net.LookupHost(host)
+					if err == nil {
+						for _, ip := range ips {
+							if ip == expectedIP {
+								ok = true
+								break
+							}
+						}
+					}
+					if ok {
+						r.logger.Trace("DNS watchdog: %s resolves to %s", host, expectedIP)
+						time.Sleep(interval)
+						continue
+					}
+					r.logger.Warn("DNS watchdog: %s does not resolve to %s (got: %v, err: %v), triggering poll and backoff", host, expectedIP, ips, err)
+					go r.retryUntilDNSOk(context.Background(), "watchdog-hostname failure")
+					for _, bo := range backoff {
+						ips, err := net.LookupHost(host)
+						ok := false
+						if err == nil {
+							for _, ip := range ips {
+								if ip == expectedIP {
+									ok = true
+									break
+								}
+							}
+						}
+						if ok {
+							r.logger.Info("DNS watchdog: %s resolves to %s after backoff", host, expectedIP)
+							break
+						}
+						r.logger.Warn("DNS watchdog: %s still does not resolve to %s, waiting %s", host, expectedIP, bo)
+						_ = r.executeTask(context.Background())
+						time.Sleep(bo)
+					}
+				}
+			}(host, watchdogExpectedIP, netinfo.Interface)
+		}
+		return
+	} else if watchdogIP != "" {
+		r.logger.Info("DNS watchdog enabled: IP=%s, interval=%s, backoff=%v", watchdogIP, interval, backoff)
+		for {
+			if utils.Ping(watchdogIP) {
+				r.logger.Trace("DNS watchdog: %s is reachable", watchdogIP)
+				time.Sleep(interval)
+				continue
+			}
+			r.logger.Warn("DNS watchdog: %s unreachable, triggering poll and backoff", watchdogIP)
+			go r.retryUntilDNSOk(context.Background(), "watchdog-ip failure")
+			for _, bo := range backoff {
+				if utils.Ping(watchdogIP) {
+					r.logger.Info("DNS watchdog: %s is reachable after backoff", watchdogIP)
+					break
+				}
+				r.logger.Warn("DNS watchdog: %s still unreachable, waiting %s", watchdogIP, bo)
+				_ = r.executeTask(context.Background())
+				time.Sleep(bo)
+			}
+		}
+	} else {
+		r.logger.Warn("No watchdog_ip or hostname configured and no DNS server found; DNS watchdog disabled")
+		return
+	}
+}
+
+// retryUntilDNSOk aggressively retries DNS/interface re-checks with backoff until success or max retries/time.
+func (r *Runner) retryUntilDNSOk(ctx context.Context, reason string) {
+	r.logger.Debug("retryUntilDNSOk called with reason: %s", reason)
+	retryCfg := r.cfg.Default.InterfaceWatch.Retry
+	var backoffSeq []time.Duration
+	if len(retryCfg.Backoff) > 0 {
+		for _, s := range retryCfg.Backoff {
+			d, err := time.ParseDuration(s)
+			if err == nil {
+				backoffSeq = append(backoffSeq, d)
+			}
+		}
+	}
+	maxTotal := 2 * time.Minute
+	if retryCfg.MaxTotal != "" {
+		if d, err := time.ParseDuration(retryCfg.MaxTotal); err == nil {
+			maxTotal = d
+		}
+	}
+	startTime := time.Now()
+	attempt := 0
+	for {
+		if len(backoffSeq) > 0 {
+			if attempt >= len(backoffSeq) {
+				break
+			}
+		} else {
+			if attempt > retryCfg.Count {
+				break
+			}
+		}
+		if time.Since(startTime) > maxTotal {
+			r.logger.Warn("%s: did not succeed after %.0fs (max_total), giving up", reason, maxTotal.Seconds())
+			break
+		}
+		err := r.executeTask(ctx)
+		if err == nil {
+			r.logger.Verbose("%s: DNS/interface re-check succeeded after %d attempt(s), total wait %.1fs", reason, attempt+1, time.Since(startTime).Seconds())
+			return
+		} else {
+			r.logger.Warn("%s: attempt %d failed: %v", reason, attempt+1, err)
+		}
+		var d time.Duration
+		if len(backoffSeq) > 0 {
+			d = backoffSeq[attempt]
+		} else {
+			baseDelay, err := time.ParseDuration(retryCfg.Delay)
+			if err != nil || baseDelay <= 0 {
+				baseDelay = 2 * time.Second
+			}
+			maxDelay := 1 * time.Minute
+			d = baseDelay << attempt // exponential backoff
+			if d > maxDelay {
+				d = maxDelay
+			}
+		}
+		time.Sleep(d)
+		attempt++
+	}
+}
+
+// StartSleepResumeWatcher listens for system sleep/resume events and triggers the callback on resume.
+// Accepts a logger for consistent logging.
+func StartSleepResumeWatcher(ctx context.Context, logger func(msg string, args ...interface{}), onResume func()) {
+	logger("Sleep watcher goroutine started")
+	defer func() {
+		if r := recover(); r != nil {
+			logger("PANIC: %v", r)
+		}
+	}()
+	conn, err := dbus.SystemBus()
+	if err != nil {
+		logger("Failed to connect to system D-Bus: %v", err)
+		return
+	}
+	ch := make(chan *dbus.Signal, 10)
+	conn.Signal(ch)
+	err = conn.AddMatchSignal(
+		dbus.WithMatchInterface("org.freedesktop.login1.Manager"),
+		dbus.WithMatchMember("PrepareForSleep"),
+		dbus.WithMatchObjectPath("/org/freedesktop/login1"),
+		dbus.WithMatchSender("org.freedesktop.login1"),
+	)
+	if err != nil {
+		logger("Failed to add D-Bus match rule: %v", err)
+		return
+	}
+	logger("Subscribed to D-Bus signals for org.freedesktop.login1.Manager/PrepareForSleep on /org/freedesktop/login1")
+	for {
+		select {
+		case sig := <-ch:
+			// Only check Path, Name, and Body
+			logger("D-Bus signal received: Path=%v, Member=%v, Sender=%v, Body=%+v", sig.Path, sig.Name, sig.Sender, sig.Body)
+			if sig.Path == "/org/freedesktop/login1" && sig.Name == "org.freedesktop.login1.Manager.PrepareForSleep" && len(sig.Body) == 1 {
+				if sleeping, ok := sig.Body[0].(bool); ok {
+					if sleeping {
+						logger("System is preparing to sleep (PrepareForSleep=true)")
+					} else {
+						logger("System resume detected via D-Bus (PrepareForSleep=false)")
+						defer func() {
+							if r := recover(); r != nil {
+								logger("PANIC in onResume callback: %v", r)
+							}
+						}()
+						onResume()
+						logger("onResume callback returned")
+					}
+				}
+			}
+		case <-ctx.Done():
+			logger("Sleep watcher goroutine exiting due to context cancellation")
+			return
+		}
+	}
+}
+
+// ZTNetworkInfo and getZTNetworksDomains merged from zt_domains.go
+
+type ZTNetworkInfo struct {
+	Interface string
+	Domain    string
+}
+
+func getZTNetworksDomains(cfg config.Config) ([]ZTNetworkInfo, error) {
+	client := &http.Client{Timeout: 5 * time.Second}
+	url := fmt.Sprintf("%s:%d/networks", strings.TrimRight(cfg.Default.Client.Host, "/"), cfg.Default.Client.Port)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	token := cfg.Default.Client.TokenFile
+	if token != "" {
+		content, err := os.ReadFile(token)
+		if err == nil {
+			req.Header.Add("X-ZT1-Auth", strings.TrimSpace(string(content)))
+		}
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var networks []map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&networks); err != nil {
+		return nil, err
+	}
+	var result []ZTNetworkInfo
+	for _, nw := range networks {
+		iface, _ := nw["portDeviceName"].(string)
+		dns, _ := nw["dns"].(map[string]interface{})
+		var domain string
+		if dns != nil {
+			domain, _ = dns["domain"].(string)
+		}
+		if iface != "" && domain != "" {
+			result = append(result, ZTNetworkInfo{Interface: iface, Domain: domain})
+		}
+	}
+	return result, nil
+}
+
+// isZTInterfaceReady merged from zt_ready.go
+
+func isZTInterfaceReady(cfg config.Config, ifaceName string) (bool, string, error) {
+	iface, err := net.InterfaceByName(ifaceName)
+	if err != nil {
+		return false, "iface_not_found", fmt.Errorf("interface %s not found: %w", ifaceName, err)
+	}
+	if iface.Flags&net.FlagUp == 0 {
+		return false, "iface_down", fmt.Errorf("interface %s exists but is down", ifaceName)
+	}
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	url := fmt.Sprintf("%s:%d/networks", strings.TrimRight(cfg.Default.Client.Host, "/"), cfg.Default.Client.Port)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return false, "api_error", err
+	}
+	token := cfg.Default.Client.TokenFile
+	if token != "" {
+		content, err := os.ReadFile(token)
+		if err == nil {
+			req.Header.Add("X-ZT1-Auth", strings.TrimSpace(string(content)))
+		}
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, "api_unreachable", fmt.Errorf("ZeroTier API unreachable: %w (iface %s is up)", err, ifaceName)
+	}
+	defer resp.Body.Close()
+	var networks []map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&networks); err != nil {
+		return false, "api_decode_error", err
+	}
+	for _, nw := range networks {
+		if nw["portDeviceName"] == ifaceName {
+			status, _ := nw["status"].(string)
+			dns, _ := nw["dns"].(map[string]interface{})
+			servers, _ := dns["servers"].([]interface{})
+			if status == "OK" && len(servers) > 0 {
+				return true, status, nil
+			}
+			return false, status, nil
+		}
+	}
+	return false, "not_found", nil
 }

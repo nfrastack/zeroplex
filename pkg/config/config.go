@@ -32,10 +32,15 @@ type ClientConfig struct {
 }
 
 type FeaturesConfig struct {
-	DNSOverTLS        bool `yaml:"dns_over_tls"`
-	AddReverseDomains bool `yaml:"add_reverse_domains"`
-	MulticastDNS      bool `yaml:"multicast_dns"`
-	RestoreOnExit     bool `yaml:"restore_on_exit"`
+	DNSOverTLS         bool     `yaml:"dns_over_tls"`
+	AddReverseDomains  bool     `yaml:"add_reverse_domains"`
+	MulticastDNS       bool     `yaml:"multicast_dns"`
+	RestoreOnExit      bool     `yaml:"restore_on_exit"`
+	WatchdogIP         string   `yaml:"watchdog_ip"`
+	WatchdogInterval   string   `yaml:"watchdog_interval"`
+	WatchdogBackoff    []string `yaml:"watchdog_backoff"`
+	WatchdogHostname   string   `yaml:"watchdog_hostname"`
+	WatchdogExpectedIP string   `yaml:"watchdog_expected_ip"`
 }
 
 type NetworkdConfig struct {
@@ -44,8 +49,10 @@ type NetworkdConfig struct {
 }
 
 type InterfaceWatchRetry struct {
-	Count int    `yaml:"count"`
-	Delay string `yaml:"delay"`
+	Count    int      `yaml:"count"`
+	Delay    string   `yaml:"delay"`
+	Backoff  []string `yaml:"backoff"`
+	MaxTotal string   `yaml:"max_total"`
 }
 
 type InterfaceWatch struct {

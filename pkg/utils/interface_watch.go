@@ -50,6 +50,13 @@ func WatchInterfacesNetlink(callback func(InterfaceEvent), stopCh <-chan struct{
 		for {
 			select {
 			case update := <-ch:
+				// Only log [event-raw] at TRACE level for non-ZeroTier interfaces
+				if logLevel == "trace" && update.Link.Attrs().Name[:2] != "zt" && update.Link.Attrs().Name[:3] != "ZT" {
+					logger.Trace("[event-raw] LinkUpdate: Name=%s, Index=%d, Type=%d, OperState=%s, Flags=%v, Change=%v", update.Link.Attrs().Name, update.Link.Attrs().Index, update.Header.Type, update.Link.Attrs().OperState, update.Link.Attrs().Flags, update.Change)
+				} else if logLevel == "debug" || logLevel == "trace" {
+					// For ZeroTier interfaces or higher log levels, keep as Debug
+					logger.Debug("[event-raw] LinkUpdate: Name=%s, Index=%d, Type=%d, OperState=%s, Flags=%v, Change=%v", update.Link.Attrs().Name, update.Link.Attrs().Index, update.Header.Type, update.Link.Attrs().OperState, update.Link.Attrs().Flags, update.Change)
+				}
 				var eventType InterfaceEventType
 				if update.Header.Type == unix.RTM_DELLINK {
 					eventType = InterfaceRemoved
@@ -60,7 +67,7 @@ func WatchInterfacesNetlink(callback func(InterfaceEvent), stopCh <-chan struct{
 						eventType = InterfaceDown
 					}
 				}
-				logger.Debug("Event: %s %s (index %d)", eventType, update.Link.Attrs().Name, update.Link.Attrs().Index)
+				logger.Debug("[event] EventType=%s, Name=%s, Index=%d, OperState=%s", eventType, update.Link.Attrs().Name, update.Link.Attrs().Index, update.Link.Attrs().OperState)
 				callback(InterfaceEvent{
 					Name:  update.Link.Attrs().Name,
 					Type:  eventType,

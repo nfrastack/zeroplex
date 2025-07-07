@@ -7,11 +7,11 @@ default:
   mode: "auto"
   log:
     level: "info"
-    type: "console"         # Options: console, file, both
+    type: "console"             # Options: console, file, both
     file: "/var/log/zeroplex.log"
     timestamps: false
   daemon:
-    enabled: true           # Default to daemon mode
+    enabled: true               # Default to daemon mode
     poll_interval: "1m"
   client:
     host: "http://localhost"
@@ -19,14 +19,18 @@ default:
     token_file: "/var/lib/zerotier-one/authtoken.secret"
   features:
     dns_over_tls: false
+    auto_restart: true
     add_reverse_domains: false
     multicast_dns: false
     restore_on_exit: false
+    watchdog_ip: null           # Optional: IP to ping for DNS watchdog (default: first DNS server from ZeroTier config)
+    watchdog_interval: 1m       # Optional: Watchdog ping interval (default: 1m)
+    watchdog_backoff: [10s, 20s, 30s] # Optional: Backoff intervals after failed ping (default: [10s, 20s, 30s])
   interface_watch:
-    mode: "event"         # Options: event, poll, off
+    mode: "event"               # Options: event, poll, off
     retry:
-      count: 3            # Number of retries after interface event
-      delay: "2s"         # Delay between retries (duration string)
+      count: 3                  # Number of retries after interface event
+      delay: "2s"               # Delay between retries (duration string)
   networkd:
     auto_restart: true
     reconcile: true

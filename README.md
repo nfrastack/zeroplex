@@ -108,6 +108,11 @@ ZeroPlex can be configured via command line flags or a YAML configuration file. 
 | `-add-reverse-domains`          | Add ip6.arpa and in-addr.arpa search domains                             | `false`                                  |
 | `-multicast-dns`                | Enable Multicast DNS (mDNS)                                              | `false`                                  |
 | `-restore-on-exit`              | Restore DNS for all managed interfaces on exit                           | `false`                                  |
+| `-watchdog-ip`                  | IP address to ping for DNS watchdog (default: first DNS server from ZeroTier config) | `null`                                   |
+| `-watchdog-interval`            | Interval for DNS watchdog ping (e.g., 1m)                                | `1m`                                     |
+| `-watchdog-backoff`             | Backoff intervals after failed ping (comma-separated, e.g., 10s,20s,30s) | `10s,20s,30s`                            |
+| `-watchdog-hostname`            | Hostname to resolve for DNS watchdog (disables IP ping if set). Supports `%domain%` placeholder, which is replaced with the ZeroTier DNS domain for each network/interface. | `null`                                   |
+| `-watchdog-expected-ip`         | Expected IP address for resolved hostname (enables strict DNS check)      | `null`                                   |
 |                                 |                                                                          |                                          |
 | **Networkd Options**            |                                                                          |                                          |
 | `-auto-restart`                 | Automatically restart systemd-networkd when things change                | `true`                                   |
@@ -208,6 +213,38 @@ profiles:
         conditions:
           - value: "test_network"
 ```
+
+## Advanced DNS Watchdog & Interface Watch
+
+ZeroPlex includes advanced reliability features to ensure your ZeroTier DNS/network configuration remains correct, even after suspend/resume, network changes, or DNS hijacking by other software.
+
+### DNS Watchdog
+
+The DNS watchdog periodically checks that DNS is working as expected. There are two modes:
+
+- **IP Ping**: By default, ZeroPlex will ping the first DNS server assigned by ZeroTier, or a custom IP set via `-watchdog-ip`. If the ping fails, ZeroPlex will attempt to reapply the DNS configuration, using a configurable backoff and retry schedule.
+- **Hostname Resolution**: For more advanced checks, you can set `-watchdog-hostname` to a DNS name to resolve (e.g., `internal.example.com`). Optionally, set `-watchdog-expected-ip` to require that the resolved IP matches an expected value. This is useful for detecting DNS hijacking, split-horizon DNS issues, or upstream resolver problems. If the check fails, ZeroPlex will reapply the config and retry with backoff.
+
+**Backoff and Retry:**
+- The `watchdog_backoff` option lets you specify a list of retry intervals (e.g., `["10s", "30s", "1m"]`). If the watchdog check fails, ZeroPlex will retry at each interval in the list before giving up. This helps avoid hammering the network or DNS server after a failure, and provides a graceful recovery from transient issues.
+
+**Example YAML:**
+
+```yaml
+default:
+  features:
+    watchdog_hostname: "internal.example.com"
+    watchdog_expected_ip: "10.10.10.10"
+    watchdog_interval: "1m"
+    watchdog_backoff: ["10s", "30s", "1m"]
+```
+
+### Interface Watch
+
+ZeroPlex can monitor ZeroTier interfaces for changes (appearance/disappearance, up/down, etc.) using either event-based or polling modes. This is critical for reliability on laptops and desktops, where suspend/resume or network manager actions can disrupt virtual interfaces. If an interface reappears, ZeroPlex will automatically reapply the correct DNS/network configuration.
+
+- `-interface-watch-mode`: Set to `event` (recommended), `poll`, or `off`.
+- `-interface-watch-retry-count` and `-interface-watch-retry-delay`: Control how many times and how quickly to retry after an interface event.
 
 ---
 

@@ -1,6 +1,17 @@
+## 2.1.0 2025-07-08 <code at nfrastack dot com>
+
+### Added
+- DNS Watchdog feature:
+  - New config options: `watchdog_ip`, `watchdog_hostname`, `watchdog_expected_ip`, `watchdog_interval`, and `watchdog_backoff`.
+  - The watchdog can periodically ping a DNS server (default: first from ZeroTier config, or override with `watchdog_ip`) or resolve a specific hostname (`watchdog_hostname`).
+  - Optionally, the watchdog can require a specific IP for the resolved hostname (`watchdog_expected_ip`) to detect DNS hijacking or split-horizon issues.
+  - If the check fails, ZeroPlex triggers a poll and retries with configurable backoff intervals (`watchdog_backoff`).
+  - This greatly improves reliability after system sleep or network changes.
+- Improved sleep/wake detection with DBUS, triggering polling upon wake with staggered backoffs
+
 ## 2.0.0 2025-06-23 <code at nfrastack dot com>
 
-This brings a whole new rewrite to the application, including a project name change. 
+This brings a whole new rewrite to the application, including a project name change.
 
 ### Added
 - Broke out application into modular packages instead of a single main.go file.

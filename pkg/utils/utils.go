@@ -97,3 +97,12 @@ func ErrorHandler(context string, err error, exit bool) {
 		os.Exit(1)
 	}
 }
+
+// Ping returns true if the given IP responds to a single ICMP echo request (ping)
+func Ping(ip string) bool {
+	cmd := exec.Command("ping", "-c", "1", "-W", "2", ip)
+	if err := cmd.Run(); err != nil {
+		return false
+	}
+	return true
+}

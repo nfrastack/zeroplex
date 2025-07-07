@@ -6,7 +6,7 @@
 
   outputs = { self, nixpkgs }:
     let
-      version = "2.0.0";
+      version = "2.1.0";
       supportedSystems = [
         "x86_64-linux"
         "aarch64-linux"
@@ -42,7 +42,7 @@
               "-X main.Version=${version}"
             ];
 
-            vendorHash = "sha256-7WVmKZFonfqcItQ9qTR6f+ty2KaGTTZutMaedOkidDU=";
+            vendorHash = "sha256-QYYExOIcFBaaYIq6miZaOdQJnd4p/rv2fTULRACAQWI=";
           };
         });
 
@@ -71,19 +71,19 @@
           options.services.zeroplex = {
             enable = lib.mkEnableOption {
               default = false;
-              description = "Enable the ZeroTier DNS Companion module to configure the tool.";
+              description = "Enable the ZeroPlex module to configure the tool.";
             };
 
             service.enable = lib.mkOption {
               type = lib.types.bool;
               default = true;
-              description = "Enable the systemd service for ZeroTier DNS Companion.";
+              description = "Enable the systemd service for ZeroPlex.";
             };
 
             package = lib.mkOption {
               type = lib.types.package;
               default = self.packages.${pkgs.system}.zeroplex;
-              description = "ZeroTier DNS Companion package to use.";
+              description = "ZeroPlex package to use.";
             };
 
             configFile = lib.mkOption {
@@ -201,6 +201,31 @@
                     default = false;
                     description = "Restore original DNS settings for all managed interfaces on exit.";
                   };
+                  watchdog_ip = lib.mkOption {
+                    type = lib.types.nullOr lib.types.str;
+                    default = null;
+                    description = "IP address to ping for DNS watchdog (default: first DNS server from ZeroTier config).";
+                  };
+                  watchdog_hostname = lib.mkOption {
+                    type = lib.types.nullOr lib.types.str;
+                    default = null;
+                    description = "DNS hostname to resolve for DNS watchdog (optional, enables hostname mode).";
+                  };
+                  watchdog_expected_ip = lib.mkOption {
+                    type = lib.types.nullOr lib.types.str;
+                    default = null;
+                    description = "Expected IP address for resolved hostname (optional, for split-horizon/hijack detection).";
+                  };
+                  watchdog_interval = lib.mkOption {
+                    type = lib.types.str;
+                    default = "1m";
+                    description = "Interval for DNS watchdog ping (e.g., 1m).";
+                  };
+                  watchdog_backoff = lib.mkOption {
+                    type = lib.types.listOf lib.types.str;
+                    default = [ "10s" "30s" "1m" "2m" ];
+                    description = "Backoff intervals after failed ping (e.g., [10s, 30s, 1m, 2m]).";
+                  };
                 };
               };
               default = {
@@ -208,6 +233,11 @@
                 add_reverse_domains = false;
                 multicast_dns = false;
                 restore_on_exit = false;
+                watchdog_ip = null;
+                watchdog_hostname = null;
+                watchdog_expected_ip = null;
+                watchdog_interval = "1m";
+                watchdog_backoff = [ "10s" "30s" "1m" "2m" ];
               };
               description = "Feature toggles.";
             };
@@ -232,11 +262,23 @@
                           default = "10s";
                           description = "Delay between retries (duration string).";
                         };
+                        backoff = lib.mkOption {
+                          type = lib.types.listOf lib.types.str;
+                          default = [ "1s" "2s" "5s" "10s" "15s" "30s" "30s" ];
+                          description = "Backoff intervals for interface event retries (overrides delay/count if set).";
+                        };
+                        max_total = lib.mkOption {
+                          type = lib.types.str;
+                          default = "2m";
+                          description = "Maximum total time to spend retrying interface readiness (duration string).";
+                        };
                       };
                     };
                     default = {
                       count = 10;
                       delay = "10s";
+                      backoff = [ "1s" "2s" "5s" "10s" "15s" "30s" "30s" ];
+                      max_total = "2m";
                     };
                     description = "Retry configuration.";
                   };
@@ -247,6 +289,8 @@
                 retry = {
                   count = 10;
                   delay = "10s";
+                  backoff = [ "1s" "2s" "5s" "10s" "15s" "30s" "30s" ];
+                  max_total = "2m";
                 };
               };
               description = "Interface watch configuration.";
@@ -318,11 +362,18 @@ default:
     add_reverse_domains: ${if cfg.features.add_reverse_domains then "true" else "false"}
     multicast_dns: ${if cfg.features.multicast_dns then "true" else "false"}
     restore_on_exit: ${if cfg.features.restore_on_exit then "true" else "false"}
+    watchdog_ip: ${if cfg.features.watchdog_ip != null then "\"${cfg.features.watchdog_ip}\"" else "null"}
+    watchdog_hostname: ${if cfg.features.watchdog_hostname != null then "\"${cfg.features.watchdog_hostname}\"" else "null"}
+    watchdog_expected_ip: ${if cfg.features.watchdog_expected_ip != null then "\"${cfg.features.watchdog_expected_ip}\"" else "null"}
+    watchdog_interval: "${cfg.features.watchdog_interval}"
+    watchdog_backoff: [${lib.concatStringsSep ", " (map (x: "\"${x}\"") cfg.features.watchdog_backoff)}]
   interface_watch:
     mode: "${cfg.interface_watch.mode}"
     retry:
       count: ${toString cfg.interface_watch.retry.count}
       delay: "${cfg.interface_watch.retry.delay}"
+      backoff: [${lib.concatStringsSep ", " (map (x: "\"${x}\"") cfg.interface_watch.retry.backoff)}]
+      max_total: "${cfg.interface_watch.retry.max_total}"
   networkd:
     auto_restart: ${if cfg.networkd.auto_restart then "true" else "false"}
     reconcile: ${if cfg.networkd.reconcile then "true" else "false"}
@@ -341,7 +392,7 @@ ${lib.generators.toYAML {} profile}
               wantedBy = [ "multi-user.target" ];
               restartTriggers = [
                 cfg.package
-                "${cfg.package.outPath}"
+                cfg.configFile
               ];
               serviceConfig = {
                 ExecStart =
@@ -365,8 +416,41 @@ ${lib.generators.toYAML {} profile}
                 StandardOutput = "journal";
                 StandardError = "journal";
                 SyslogIdentifier = "zeroplex";
+                # Ensure D-Bus/system bus access for sleep/resume detection
+                Environment = "DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket";
+                PrivateTmp = false;
+                PrivateDevices = false;
+                PrivateNetwork = false;
               };
             };
+            services.dbus.packages = [
+    (pkgs.stdenv.mkDerivation {
+      name = "zeroplex-dbus-policy";
+      src = null;
+      dontUnpack = true;
+      installPhase = ''
+        mkdir -p $out/etc/dbus-1/system.d
+        cat > $out/etc/dbus-1/system.d/zeroplex-login1.conf <<EOF
+<!DOCTYPE busconfig PUBLIC
+ "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <policy user="root">
+    <allow send_destination="org.freedesktop.login1"/>
+    <allow receive_sender="org.freedesktop.login1"/>
+    <allow send_interface="org.freedesktop.login1"/>
+    <allow receive_interface="org.freedesktop.login1"/>
+    <allow send_interface="org.freedesktop.login1.Manager"/>
+    <allow receive_interface="org.freedesktop.login1.Manager"/>
+    <allow send_type="signal"/>
+    <allow receive_type="signal"/>
+    <allow own="org.freedesktop.login1"/>
+  </policy>
+</busconfig>
+EOF
+      '';
+    })
+  ];
           };
         };
     };

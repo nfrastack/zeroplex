@@ -32,6 +32,9 @@
       add_reverse_domains = false;
       multicast_dns = false;
       restore_on_exit = false;
+      watchdog_ip = null;
+      watchdog_interval = "1m";
+      watchdog_backoff = [ "10s" "20s" "30s" ];
     };
     interface_watch = {
       mode = "event";
@@ -100,6 +103,11 @@
         log.level = "info";
         features.add_reverse_domains = true;
         features.restore_on_exit = false;
+        features.watchdog_ip = "1.1.1.1";
+        features.watchdog_interval = "2m";
+        features.watchdog_backoff = [ "5s" "15s" "30s" ];
+        features.watchdog_hostname = "test.example.com";
+        features.watchdog_expected_ip = "123.123.123.123";
         filters = [
           {
             type = "network_id";

@@ -53,6 +53,9 @@ Here are the available options for the NixOS module (`services.zeroplex`):
   * `add_reverse_domains` (bool): Add ip6.arpa and in-addr.arpa search domains.
   * `multicast_dns` (bool): Enable Multicast DNS (mDNS).
   * `restore_on_exit` (bool): Restore DNS for all managed interfaces on exit.
+  * `watchdog_ip` (str or null): IP address to ping for DNS watchdog (default: first DNS server from ZeroTier config).
+  * `watchdog_interval` (str): Interval for DNS watchdog ping (e.g., `"1m"`).
+  * `watchdog_backoff` (list of str): Backoff intervals after failed ping (e.g., `["10s", "20s", "30s"]`).
 * `networkd` (attrs): systemd-networkd integration options.
   * `auto_restart` (bool): Automatically restart systemd-networkd when things change.
   * `reconcile` (bool): Remove left networks from systemd-networkd configuration.
