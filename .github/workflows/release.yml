@@ -60,8 +60,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
-          draft: false
+          name: ${{ github.ref_name }}
+          draft: true
           prerelease: false
 
       - name: Upload Release Asset (AMD64)
