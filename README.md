@@ -71,10 +71,8 @@ ZeroPlex now uses a modern, nested YAML configuration structure. All options are
 - If not specified, ZeroPlex will look for `zeroplex.yml` in the current working directory.
 - If not found, it will look for `/etc/zeroplex.yml`.
 - If no config file is found, ZeroPlex will print a warning and proceed with only command-line arguments and built-in defaults. All CLI flags will still work and take precedence.
+- See the sample config [contrib/config/zeroplex.yml.sample]contrib/config/zeroplex.yml.sample) for a full example.
 
-- See the sample config (`contrib/config/zeroplex.yml.sample`) for a full example.
-- All code, CLI flags, and documentation have been updated to use the new nested structure.
-- Old flat config fields are no longer supported.
 
 ### Command Line Flags
 
@@ -140,19 +138,19 @@ Profiles allow you to define multiple configuration sets in a single YAML file u
 
 ```yaml
 default:
-  mode: "auto"
+  mode: auto
   log:
-    level: "info"
+    level: info
     timestamps: false
-    type: "console"
-    file: "/var/log/zeroplex.log"
+    type: console
+    file: /var/log/zeroplex.log
   daemon:
     enabled: false
-    poll_interval: "1m"
+    poll_interval: 1m
   client:
-    host: "http://localhost"
+    host: http://localhost
     port: 9993
-    token_file: "/var/lib/zerotier-one/authtoken.secret"
+    token_file: /var/lib/zerotier-one/authtoken.secret
   features:
     dns_over_tls: false
     auto_restart: true
@@ -162,56 +160,56 @@ default:
   networkd:
     reconcile: true
   interface_watch:
-    mode: "event"
+    mode: event
     retry:
       count: 3
-      delay: "2s"
+      delay: 2s
 
 profiles:
   development:
     log:
-      level: "debug"
+      level: debug
       timestamps: true
     daemon:
       enabled: true
-      poll_interval: "30s"
+      poll_interval: 30s
     interface_watch:
-      mode: "event"
+      mode: event
       retry:
         count: 3
-        delay: "2s"
+        delay: 2s
     restore_on_exit: false
     filters:
-      - type: "interface"
+      - type: interface
         conditions:
-          - value: "zt12345678"
-            logic: "or"
-          - value: "zt87654321"
-            logic: "or"
+          - value: zt12345678
+            logic: or
+          - value: zt87654321
+            logic: or
 
   production:
-    mode: "networkd"
+    mode: networkd
     daemon:
       enabled: true
-      poll_interval: "5m"
+      poll_interval: 5m
     interface_watch:
-      mode: "poll"
+      mode: poll
       retry:
         count: 2
-        delay: "1s"
+        delay: 1s
     restore_on_exit: false
     filters:
-      - type: "network"
+      - type: network
         conditions:
-          - value: "prod_network"
-            logic: "or"
-          - value: "mgmt_network"
-            logic: "or"
-      - type: "network"
-        operation: "AND"
+          - value: prod_network
+            logic: or
+          - value: mgmt_network
+            logic: or
+      - type: network
+        operation: AND
         negate: true
         conditions:
-          - value: "test_network"
+          - value: test_network
 ```
 
 ## Advanced DNS Watchdog & Interface Watch
@@ -233,9 +231,9 @@ The DNS watchdog periodically checks that DNS is working as expected. There are 
 ```yaml
 default:
   features:
-    watchdog_hostname: "internal.example.com"
-    watchdog_expected_ip: "10.10.10.10"
-    watchdog_interval: "1m"
+    watchdog_hostname: internal.example.com
+    watchdog_expected_ip: 10.10.10.10
+    watchdog_interval: 1m
     watchdog_backoff: ["10s", "30s", "1m"]
 ```
 
@@ -261,7 +259,7 @@ A NixOS module is also available for declarative configuration ([contrib/nixos](
 
 ### Usage
 
-- The [Discussions board](../../discussions) is a great place for working with the community.
+- The [Discussions board](discussions) is a great place for working with the community.
 
 ### Bugfixes
 
