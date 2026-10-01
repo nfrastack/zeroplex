@@ -82,7 +82,7 @@
 
             package = lib.mkOption {
               type = lib.types.package;
-              default = self.packages.${pkgs.system}.zeroplex;
+              default = self.packages.${pkgs.stdenv.hostPlatform.system}.zeroplex;
               description = "ZeroPlex package to use.";
             };
 
