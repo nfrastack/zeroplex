@@ -42,7 +42,7 @@
               "-X main.Version=${version}"
             ];
 
-            vendorHash = "sha256-QYYExOIcFBaaYIq6miZaOdQJnd4p/rv2fTULRACAQWI=";
+            vendorHash = "sha256-kZCJfX2Xyo+GM7qKi/HyuKJ3UYBqRjMSlzlhOhiv46o=";
           };
         });
 
