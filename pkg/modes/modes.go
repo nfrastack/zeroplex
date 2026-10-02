@@ -52,7 +52,7 @@ DNSOverTLS=yes
 {{ if .MDNS -}}
 MulticastDNS=yes
 {{ end -}}
-Domains=~{{ .Domain }}
+Domains={{ .Domain }}
 ConfigureWithoutCarrier=true
 KeepConfiguration=static
 `
@@ -121,7 +121,7 @@ KeepConfiguration=static
 			ZTInterface: *network.PortDeviceName,
 			ZTNetwork:   *network.Name,
 			DNS:         *network.Dns.Servers,
-			Domain:      strings.Join(searchkeys, " "),
+			Domain:      "~" + strings.Join(searchkeys, " ~"),
 			FileHeader:  fileheader,
 			DNS_TLS:     dnsOverTLS,
 			MDNS:        multicastDNS,

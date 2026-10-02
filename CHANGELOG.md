@@ -5,6 +5,7 @@
 
 ### Changed
   - Removed old warnings related to DNS-TLS and mDNS
+  - Match ALL domains and TLDs instad of first output
 
 ## 2.1.0 2025-07-08 <code at nfrastack dot com>
 
