@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: © 2025 Nfrastack <code@nfrastack.com>
+// SPDX-FileCopyrightText: © 2026 Nfrastack <code@nfrastack.com>
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -41,6 +41,7 @@ type FeaturesConfig struct {
 	WatchdogBackoff    []string `yaml:"watchdog_backoff"`
 	WatchdogHostname   string   `yaml:"watchdog_hostname"`
 	WatchdogExpectedIP string   `yaml:"watchdog_expected_ip"`
+	ExtraSearchDomains []string `yaml:"extra_search_domains"`
 }
 
 type NetworkdConfig struct {
@@ -316,6 +317,9 @@ func MergeProfiles(defaultProfile, selectedProfile Profile) Profile {
 	}
 	if selectedProfile.Features.RestoreOnExit {
 		mergedProfile.Features.RestoreOnExit = true
+	}
+	if len(selectedProfile.Features.ExtraSearchDomains) > 0 {
+		mergedProfile.Features.ExtraSearchDomains = selectedProfile.Features.ExtraSearchDomains
 	}
 
 	// Copy Filters

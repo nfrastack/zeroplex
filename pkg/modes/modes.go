@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: © 2025 Nfrastack <code@nfrastack.com>
+// SPDX-FileCopyrightText: © 2026 Nfrastack <code@nfrastack.com>
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -32,7 +32,7 @@ type templateScaffold struct {
 	MDNS        bool
 }
 
-func RunNetworkdMode(networks *service.GetNetworksResponse, addReverseDomains, autoRestart, dnsOverTLS, dryRun, multicastDNS, reconcile bool) {
+func RunNetworkdMode(networks *service.GetNetworksResponse, addReverseDomains, autoRestart, dnsOverTLS, dryRun, multicastDNS, reconcile bool, extraSearchDomains []string) {
 	logger := log.NewScopedLogger("[networkd]", "info")
 
 	const fileheader = "--- Managed by zeroplex. Do not remove this comment. ---"
@@ -103,6 +103,11 @@ KeepConfiguration=static
 				search[domain] = struct{}{}
 				logger.Debug("Added reverse domain to search: %s", domain)
 			}
+		}
+
+		for _, domain := range extraSearchDomains {
+			search[domain] = struct{}{}
+			logger.Debug("Added extra search domain: %s", domain)
 		}
 
 		searchkeys := []string{}
@@ -211,7 +216,7 @@ KeepConfiguration=static
 
 var managedZTInterfaces = make(map[string]struct{})
 
-func RunResolvedMode(networks *service.GetNetworksResponse, addReverseDomains, dnsOverTLS, multicastDNS, dryRun bool, logLevel string) {
+func RunResolvedMode(networks *service.GetNetworksResponse, addReverseDomains, dnsOverTLS, multicastDNS, dryRun bool, logLevel string, extraSearchDomains []string) {
 	logger := log.NewScopedLogger("[resolved]", logLevel)
 
 	if !utils.CommandExists("resolvectl") {
@@ -277,6 +282,10 @@ func RunResolvedMode(networks *service.GetNetworksResponse, addReverseDomains, d
 				for _, domain := range reverseDomains {
 					searchDomains[domain] = struct{}{}
 				}
+			}
+
+			for _, domain := range extraSearchDomains {
+				searchDomains[domain] = struct{}{}
 			}
 
 			searchKeys := []string{}

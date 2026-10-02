@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: © 2025 Nfrastack <code@nfrastack.com>
+// SPDX-FileCopyrightText: © 2026 Nfrastack <code@nfrastack.com>
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -36,6 +36,7 @@ type Flags struct {
 	Reconcile                *bool
 	Token                    *string
 	RestoreOnExit            *bool
+	ExtraSearchDomains       *string
 	InterfaceWatchMode       *string
 	InterfaceWatchRetryCount *int
 	InterfaceWatchRetryDelay *string
@@ -62,6 +63,7 @@ func ParseFlags() (*Flags, map[string]bool) {
 		ConfigFileShort:          flag.String("config", "", "Path to the configuration file (alias)"),
 		DNSOverTLS:               flag.Bool("dns-over-tls", false, "Automatically prefer DNS-over-TLS. Default: false"),
 		DryRun:                   flag.Bool("dry-run", false, "Enable dry-run mode. No changes will be made."),
+		ExtraSearchDomains:       flag.String("extra-search-domains", "", "Additional DNS search domains merged with ZeroTier per-network domain (comma-separated)."),
 		Host:                     flag.String("host", "http://localhost", "ZeroTier client host address. Default: http://localhost"),
 		InterfaceWatchMode:       flag.String("interface-watch-mode", "event", "Interface watch mode: event, poll, or off."),
 		InterfaceWatchRetryCount: flag.Int("interface-watch-retry-count", 3, "Number of retries after interface event."),
@@ -106,7 +108,8 @@ func validateFlagsWithValues() {
 			if strings.HasPrefix(arg, "--") || (len(arg) > 1 && arg[1] != '-') {
 				flagName := strings.TrimLeft(arg, "-")
 				if flagName == "log-level" || flagName == "mode" || flagName == "profile" ||
-					flagName == "host" || flagName == "token" || flagName == "token-file" || flagName == "config-file" {
+					flagName == "host" || flagName == "token" || flagName == "token-file" || flagName == "config-file" ||
+					flagName == "extra-search-domains" {
 
 					hasValue := false
 					if i+1 < len(os.Args) {
@@ -162,6 +165,15 @@ func ApplyExplicitFlags(cfg *config.Config, flags *Flags, explicitFlags map[stri
 	}
 	if explicitFlags["restore-on-exit"] {
 		cfg.Default.Features.RestoreOnExit = *flags.RestoreOnExit
+	}
+	if explicitFlags["extra-search-domains"] {
+		var domains []string
+		for _, d := range strings.Split(*flags.ExtraSearchDomains, ",") {
+			if trimmed := strings.TrimSpace(d); trimmed != "" {
+				domains = append(domains, trimmed)
+			}
+		}
+		cfg.Default.Features.ExtraSearchDomains = domains
 	}
 	if explicitFlags["interface-watch-mode"] {
 		cfg.Default.InterfaceWatch.Mode = *flags.InterfaceWatchMode

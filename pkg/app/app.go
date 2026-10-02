@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: © 2025 Nfrastack <code@nfrastack.com>
+// SPDX-FileCopyrightText: © 2026 Nfrastack <code@nfrastack.com>
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -78,7 +78,7 @@ func showStartupBanner(logLevel string, showTimestamps bool, version string) {
 }
 
 func printCopyrightAndLicense() {
-	fmt.Println("© 2025 Nfrastack https://nfrastack.com - BSD-3-Clause License")
+	fmt.Println("© 2026 Nfrastack https://nfrastack.com - BSD-3-Clause License")
 }
 
 func printStartupVersion(version string) {
@@ -87,7 +87,7 @@ func printStartupVersion(version string) {
 }
 
 func printVersion(version string) {
-	fmt.Printf("ZeroPlex version: %s | © 2025 Nfrastack https://nfrastack.com - BSD-3-Clause License\n", version)
+	fmt.Printf("ZeroPlex version: %s | © 2026 Nfrastack https://nfrastack.com - BSD-3-Clause License\n", version)
 }
 
 // Run starts the application
@@ -298,6 +298,9 @@ func mergeProfiles(defaultProfile, selectedProfile config.Profile) config.Profil
 	merged.Features.AddReverseDomains = selectedProfile.Features.AddReverseDomains || merged.Features.AddReverseDomains
 	merged.Features.MulticastDNS = selectedProfile.Features.MulticastDNS || merged.Features.MulticastDNS
 	merged.Features.RestoreOnExit = selectedProfile.Features.RestoreOnExit || merged.Features.RestoreOnExit
+	if len(selectedProfile.Features.ExtraSearchDomains) > 0 {
+		merged.Features.ExtraSearchDomains = selectedProfile.Features.ExtraSearchDomains
+	}
 
 	// Merge InterfaceWatch
 	if selectedProfile.InterfaceWatch.Mode != "" {
@@ -344,6 +347,7 @@ func init() {
 		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--multicast-dns", "Enable Multicast DNS (mDNS)")
 		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--add-reverse-domains", "Add ip6.arpa and in-addr.arpa search domains")
 		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--restore-on-exit", "Restore original DNS settings for all managed interfaces on exit")
+		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--extra-search-domains", "Additional DNS search domains, comma-separated")
 		fmt.Fprintf(flag.CommandLine.Output(), "\nNetworkd Options:\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--auto-restart", "Automatically restart systemd-networkd when things change")
 		fmt.Fprintf(flag.CommandLine.Output(), "  %-29s %s\n", "--reconcile", "Automatically remove left networks from systemd-networkd configuration")

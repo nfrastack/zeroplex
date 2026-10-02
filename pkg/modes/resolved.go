@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: © 2025 Nfrastack <code@nfrastack.com>
+// SPDX-FileCopyrightText: © 2026 Nfrastack <code@nfrastack.com>
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -92,6 +92,7 @@ func (r *ResolvedMode) processNetworks(ctx context.Context, networks *service.Ge
 		r.GetConfig().Default.Features.MulticastDNS,
 		r.IsDryRun(),
 		r.GetConfig().Default.Log.Level,
+		r.GetConfig().Default.Features.ExtraSearchDomains,
 	)
 	return nil
 }

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: © 2025 Nfrastack <code@nfrastack.com>
+// SPDX-FileCopyrightText: © 2026 Nfrastack <code@nfrastack.com>
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
@@ -79,7 +79,8 @@ func (n *NetworkdMode) processNetworks(ctx context.Context, networks *service.Ge
 	logger.Trace("processNetworks called")
 	// Call the existing networkd implementation directly
 	RunNetworkdMode(networks, n.GetConfig().Default.Features.AddReverseDomains, n.GetConfig().Default.Networkd.AutoRestart,
-		n.GetConfig().Default.Features.DNSOverTLS, n.IsDryRun(), n.GetConfig().Default.Features.MulticastDNS, n.GetConfig().Default.Networkd.Reconcile)
+		n.GetConfig().Default.Features.DNSOverTLS, n.IsDryRun(), n.GetConfig().Default.Features.MulticastDNS,
+		n.GetConfig().Default.Networkd.Reconcile, n.GetConfig().Default.Features.ExtraSearchDomains)
 
 	return nil
 }
