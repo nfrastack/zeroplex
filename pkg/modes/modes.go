@@ -75,6 +75,13 @@ KeepConfiguration=static
 	}
 
 	found := map[string]struct{}{}
+	if matches, err := filepath.Glob("/etc/systemd/network/99-*.network"); err == nil {
+		for _, m := range matches {
+			if content, err := os.ReadFile(m); err == nil && bytes.Contains(content, []byte(fileheader)) {
+				found[path.Base(m)] = struct{}{}
+			}
+		}
+	}
 	var changed bool
 
 	logger.Verbose("Processing %d networks for networkd configuration", len(*networks.JSON200))
