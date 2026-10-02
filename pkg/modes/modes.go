@@ -224,24 +224,6 @@ func RunResolvedMode(networks *service.GetNetworksResponse, addReverseDomains, d
 	}
 	logger.Trace("resolvectl is available for systemd-resolved commands")
 
-	if dnsOverTLS {
-		logger.Info("DNS-over-TLS requested for systemd-resolved mode (experimental)")
-		if !dryRun {
-			// Attempt to enable DNS-over-TLS for each interface (if supported)
-			// systemd-resolved supports DNSOverTLS=opportunistic|yes|no in .network files, but not via resolvectl
-			logger.Warn("DNS-over-TLS cannot be set via resolvectl; please configure DNSOverTLS= in .network files or systemd-resolved config if needed.")
-		}
-	}
-
-	if multicastDNS {
-		logger.Info("Multicast DNS (mDNS) requested for systemd-resolved mode (experimental)")
-		if !dryRun {
-			// Attempt to enable mDNS for each interface (if supported)
-			// systemd-resolved supports MulticastDNS= in .network files, not via resolvectl
-			logger.Warn("Multicast DNS cannot be set via resolvectl; please configure MulticastDNS= in .network files or systemd-resolved config if needed.")
-		}
-	}
-
 	currentZT := make(map[string]struct{})
 	for _, network := range *networks.JSON200 {
 		if network.Dns != nil && len(*network.Dns.Servers) != 0 {

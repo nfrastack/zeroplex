@@ -3,6 +3,9 @@
 ### Added
   - Extra search domains feature
 
+### Changed
+  - Removed old warnings related to DNS-TLS and mDNS
+
 ## 2.1.0 2025-07-08 <code at nfrastack dot com>
 
 ### Added
