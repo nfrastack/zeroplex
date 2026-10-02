@@ -106,6 +106,7 @@ ZeroPlex can be configured via command line flags or a YAML configuration file. 
 | `-add-reverse-domains`          | Add ip6.arpa and in-addr.arpa search domains                             | `false`                                  |
 | `-multicast-dns`                | Enable Multicast DNS (mDNS)                                              | `false`                                  |
 | `-restore-on-exit`              | Restore DNS for all managed interfaces on exit                           | `false`                                  |
+| `-extra-search-domains`         | Additional DNS search domains merged with ZeroTier per-network domain (comma-separated) |                                         |
 | `-watchdog-ip`                  | IP address to ping for DNS watchdog (default: first DNS server from ZeroTier config) | `null`                                   |
 | `-watchdog-interval`            | Interval for DNS watchdog ping (e.g., 1m)                                | `1m`                                     |
 | `-watchdog-backoff`             | Backoff intervals after failed ping (comma-separated, e.g., 10s,20s,30s) | `10s,20s,30s`                            |
@@ -157,6 +158,8 @@ default:
     add_reverse_domains: false
     multicast_dns: false
     restore_on_exit: false
+    extra_search_domains:
+      - example.com
   networkd:
     reconcile: true
   interface_watch:
