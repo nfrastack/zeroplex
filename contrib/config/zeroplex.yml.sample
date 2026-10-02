@@ -23,6 +23,8 @@ default:
     add_reverse_domains: false
     multicast_dns: false
     restore_on_exit: false
+    extra_search_domains:
+      - "example.com"           # Additional DNS search domains merged with ZeroTier per network domain
     watchdog_ip: null           # Optional: IP to ping for DNS watchdog (default: first DNS server from ZeroTier config)
     watchdog_interval: 1m       # Optional: Watchdog ping interval (default: 1m)
     watchdog_backoff: [10s, 20s, 30s] # Optional: Backoff intervals after failed ping (default: [10s, 20s, 30s])
