@@ -2,7 +2,7 @@ BINARY_NAME := zeroplex
 BUILD_DIR := ./cmd/zeroplex
 GO := go
 LDFLAGS := -s -w
-VERSION := $(shell [ -n "$$ZTDNSCOMPANION_VERSION" ] && echo "$$ZTDNSCOMPANION_VERSION" || (git describe --tags --exact-match 2>/dev/null || git describe --always --dirty|| echo "dev"))
+VERSION := $(shell [ -n "$$ZEROPLEX_VERSION" ] && echo "$$ZEROPLEX_VERSION" || (git describe --tags --exact-match 2>/dev/null || git describe --always --dirty|| echo "dev"))
 BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 BUILD_FLAGS := -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)
 
