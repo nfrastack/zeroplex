@@ -1,4 +1,4 @@
-## 2.2.0b 2026-10-01 <code at nfrastack dot com>
+## 2.2.0 2026-10-01 <code at nfrastack dot com>
 
 ### Added
   - Extra search domains feature
