@@ -591,7 +591,7 @@ type ZTNetworkInfo struct {
 
 func getZTNetworksDomains(cfg config.Config) ([]ZTNetworkInfo, error) {
 	client := &http.Client{Timeout: 5 * time.Second}
-	url := fmt.Sprintf("%s:%d/networks", strings.TrimRight(cfg.Default.Client.Host, "/"), cfg.Default.Client.Port)
+	url := fmt.Sprintf("%s:%d/network", strings.TrimRight(cfg.Default.Client.Host, "/"), cfg.Default.Client.Port)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -608,6 +608,9 @@ func getZTNetworksDomains(cfg config.Config) ([]ZTNetworkInfo, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("ZeroTier API returned %s for %s", resp.Status, url)
+	}
 	var networks []map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&networks); err != nil {
 		return nil, err
@@ -639,7 +642,7 @@ func isZTInterfaceReady(cfg config.Config, ifaceName string) (bool, string, erro
 	}
 
 	client := &http.Client{Timeout: 5 * time.Second}
-	url := fmt.Sprintf("%s:%d/networks", strings.TrimRight(cfg.Default.Client.Host, "/"), cfg.Default.Client.Port)
+	url := fmt.Sprintf("%s:%d/network", strings.TrimRight(cfg.Default.Client.Host, "/"), cfg.Default.Client.Port)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return false, "api_error", err
@@ -656,6 +659,9 @@ func isZTInterfaceReady(cfg config.Config, ifaceName string) (bool, string, erro
 		return false, "api_unreachable", fmt.Errorf("ZeroTier API unreachable: %w (iface %s is up)", err, ifaceName)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return false, "api_status_error", fmt.Errorf("ZeroTier API returned %s for %s", resp.Status, url)
+	}
 	var networks []map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&networks); err != nil {
 		return false, "api_decode_error", err

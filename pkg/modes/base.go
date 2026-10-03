@@ -56,7 +56,7 @@ func (b *BaseMode) FetchNetworks(ctx context.Context) (*service.GetNetworksRespo
 	}
 
 	// Fetch networks
-	logger.Trace("Making API request to fetch networks (GET %s/networks)", ztBaseURL)
+	logger.Trace("Making API request to fetch networks (GET %s/network)", ztBaseURL)
 	resp, err := ztClient.GetNetworks(ctx)
 	if err != nil {
 		logger.Error("Failed to get networks: %v (could not access the ZeroTier API server)", err)
