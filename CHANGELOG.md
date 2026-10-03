@@ -1,3 +1,9 @@
+## 2.2.1 2026-10-03 <code at nfrastack dot com>
+
+   ### Changed
+      - Fix journal getting spammed with EOF
+
+
 ## 2.2.0 2026-10-01 <code at nfrastack dot com>
 
 ### Added
