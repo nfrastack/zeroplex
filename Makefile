@@ -48,6 +48,46 @@ check-release:
 		exit 1; \
 	fi
 
+version:
+	@if [ -n "$(V)" ]; then \
+		sed -i 's/^\(      version = "\)[^"]*"/\1$(V)"/' flake.nix; \
+		echo "version set to $(V): flake.nix"; \
+	else \
+		echo "flake.nix:  $$(grep -o 'version = "[^"$$][^"]*"' flake.nix | head -1 | cut -d'"' -f2)"; \
+		echo "git:        $$(git describe --tags --exact-match 2>/dev/null || git describe --always --dirty 2>/dev/null || echo dev)"; \
+	fi
+
+go-version:
+	@if [ -n "$(V)" ]; then \
+		echo "$(V)" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "error: V must be full X.Y.Z (got '$(V)')"; exit 1; }; \
+		MAJMIN=$$(echo "$(V)" | cut -d. -f1,2); \
+		ATTR=$$(echo "$$MAJMIN" | tr . _); \
+		sed -i "s/expectedGoVersion = \"[^\"]*\"/expectedGoVersion = \"$(V)\"/" flake.nix; \
+		sed -i "s/goOverrideVersion = \"[^\"]*\"/goOverrideVersion = \"$(V)\"/" flake.nix; \
+		sed -i "s/go_[0-9_]*/go_$$ATTR/g" flake.nix; \
+		for f in .github/workflows/release.yml .github/workflows/branch-build.yml; do \
+			[ -f "$$f" ] && sed -i "s/go-version: '[^']*'/go-version: '$(V)'/" "$$f"; \
+		done; \
+		[ -f container/Containerfile ] && sed -i 's/GOLANG_VERSION="[^"]*"/GOLANG_VERSION="$(V)"/' container/Containerfile; \
+		if grep -q 'GoLang [0-9][0-9]*\.[0-9][0-9]*' README.md 2>/dev/null; then \
+			sed -i "s/GoLang [0-9][0-9]*\.[0-9][0-9]*/GoLang $$MAJMIN/" README.md; \
+		fi; \
+		$(GO) mod edit -go=$(V); \
+		echo "go $(V): go.mod + flake + gha"; \
+		HASH=$$(nix store prefetch-file --json "https://go.dev/dl/go$(V).src.tar.gz" 2>/dev/null | grep -o '"hash": *"[^"]*"' | cut -d'"' -f4); \
+		if [ -n "$$HASH" ]; then \
+			sed -i "s|goOverrideHash = \"[^\"]*\"|goOverrideHash = \"$$HASH\"|" flake.nix; \
+			echo "goOverrideHash auto-set to $$HASH"; \
+		else \
+			echo "WARN: auto-prefetch failed - update goOverrideHash in flake.nix manually:"; \
+			echo "  nix store prefetch-file --json https://go.dev/dl/go$(V).src.tar.gz"; \
+		fi; \
+	else \
+		echo "go.mod:     $$(grep -o '^go [0-9.]*' go.mod)"; \
+		echo "flake:      $$(grep -o 'expectedGoVersion = "[^"]*"' flake.nix) + override $$(grep -o 'goOverrideVersion = "[^"]*"' flake.nix)"; \
+		echo "gha release:$$(grep -o "go-version: '[^']*'" .github/workflows/release.yml)"; \
+	fi
+
 help:
 	@echo "make build           Build the binary"
 	@echo "make build-release   Build the binary with version information"
@@ -56,4 +96,6 @@ help:
 	@echo "make install         Install the binary locally"
 	@echo "make release         Build and prepare for release"
 	@echo "make check-release   Verify if the repository is tagged and clean"
+	@echo "make version [V=x]   Show app version, or set it (flake.nix)"
+	@echo "make go-version [V=x] Show Go version, or set it (go.mod + flake + gha)"
 	@echo "make help            Show this message"
