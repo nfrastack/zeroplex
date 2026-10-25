@@ -7,11 +7,14 @@
   outputs = { self, nixpkgs }:
     let
       version = "2.2.1";
-      expectedGoVersion = "1.26.10";
 
-      goOverrideVersion = "1.26.10";
+      goVersion = "1.26.10";
+
+      goMajorMinor = nixpkgs.lib.versions.majorMinor goVersion;
+      goAttr = "go_${nixpkgs.lib.replaceStrings ["."] ["_"] goMajorMinor}";
+      goBuilder = "buildGo${nixpkgs.lib.replaceStrings ["."] [""] goMajorMinor}Module";
+
       goOverrideHash = "sha256-/WPog7ovK/ypPBZGsx6+9j4rHk0rMXyXidl2po2B828=";
-      # --- END Go security override ---
       supportedSystems = [
         "x86_64-linux"
         "aarch64-linux"
@@ -21,24 +24,31 @@
       nixpkgsFor = forAllSystems (system: import nixpkgs {
         inherit system;
         overlays = [
-          (final: prev: {
-            go = (prev.go_1_26 or prev.go).overrideAttrs (old: {
-              version = goOverrideVersion;
-              src = final.fetchurl {
-                url = "https://go.dev/dl/go${goOverrideVersion}.src.tar.gz";
-                hash = goOverrideHash;
-              };
-            });
-            go_1_26 = final.go;
-          })
+          (final: prev:
+            let stock = prev.${goAttr} or prev.go; in
+            {
+              ${goAttr} =
+                if nixpkgs.lib.versionOlder stock.version goVersion then
+                  stock.overrideAttrs (old: {
+                    version = goVersion;
+                    src = final.fetchurl {
+                      url = "https://go.dev/dl/go${goVersion}.src.tar.gz";
+                      hash = goOverrideHash;
+                    };
+                  })
+                else
+                  stock;
+              go = final.${goAttr};
+              buildGoModule = prev.${goBuilder};
+            })
         ];
       });
     in {
       packages = forAllSystems (system:
         let pkgs = nixpkgsFor.${system};
         in assert nixpkgs.lib.assertMsg
-          (nixpkgs.lib.versions.majorMinor pkgs.go.version == nixpkgs.lib.versions.majorMinor expectedGoVersion)
-          "Go toolchain mismatch: nixpkgs provides ${pkgs.go.version}, expected ${expectedGoVersion}.x";
+          (!(nixpkgs.lib.versionOlder (pkgs.${goAttr}.version or "0") goVersion))
+          "Go toolchain too old: ${goAttr} provides ${pkgs.${goAttr}.version or "missing"}, zeroplex needs >= ${goVersion}";
         {
           zeroplex = pkgs.buildGoModule {
             pname = "zeroplex";

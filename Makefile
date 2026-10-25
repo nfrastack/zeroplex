@@ -61,10 +61,7 @@ go-version:
 	@if [ -n "$(V)" ]; then \
 		echo "$(V)" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "error: V must be full X.Y.Z (got '$(V)')"; exit 1; }; \
 		MAJMIN=$$(echo "$(V)" | cut -d. -f1,2); \
-		ATTR=$$(echo "$$MAJMIN" | tr . _); \
-		sed -i "s/expectedGoVersion = \"[^\"]*\"/expectedGoVersion = \"$(V)\"/" flake.nix; \
-		sed -i "s/goOverrideVersion = \"[^\"]*\"/goOverrideVersion = \"$(V)\"/" flake.nix; \
-		sed -i "s/go_[0-9_]*/go_$$ATTR/g" flake.nix; \
+		sed -i 's/\(goVersion = "\)[^"]*"/\1$(V)"/' flake.nix; \
 		for f in .github/workflows/release.yml .github/workflows/branch-build.yml; do \
 			[ -f "$$f" ] && sed -i "s/go-version: '[^']*'/go-version: '$(V)'/" "$$f"; \
 		done; \
@@ -84,7 +81,7 @@ go-version:
 		fi; \
 	else \
 		echo "go.mod:     $$(grep -o '^go [0-9.]*' go.mod)"; \
-		echo "flake:      $$(grep -o 'expectedGoVersion = "[^"]*"' flake.nix) + override $$(grep -o 'goOverrideVersion = "[^"]*"' flake.nix)"; \
+		echo "flake:      $$(grep -o 'goVersion = "[^"]*"' flake.nix)"; \
 		echo "gha release:$$(grep -o "go-version: '[^']*'" .github/workflows/release.yml)"; \
 	fi
 
